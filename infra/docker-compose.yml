@@ -1,0 +1,57 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: acmhot100-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: acmhot100
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - acmhot100-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: acmhot100-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - acmhot100-net
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: acmhot100-mailpit
+    ports:
+      - "1025:1025"
+      - "127.0.0.1:8025:8025"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:8025/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - acmhot100-net
+
+networks:
+  acmhot100-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
