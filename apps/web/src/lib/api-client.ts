@@ -28,6 +28,31 @@ interface ApiErrorResponse {
 // --- Token refresh logic (single concurrent refresh) ---
 
 let refreshPromise: Promise<boolean> | null = null;
+let refreshGeneration = 0;
+let latestRefreshResult = false;
+let sessionGeneration = 0;
+
+const AUTH_ENDPOINTS_WITHOUT_AUTO_REFRESH = new Set([
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/verify-email',
+  '/auth/resend-verification',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+]);
+
+const SESSION_BOUNDARY_ENDPOINTS = new Set([
+  '/auth/login',
+  '/auth/logout',
+  '/auth/logout-all',
+  '/auth/reset-password',
+]);
+
+function normalizedEndpoint(endpoint: string): string {
+  const path = endpoint.split('?', 1)[0] ?? endpoint;
+  return path.length > 1 ? path.replace(/\/+$/, '') : path;
+}
 
 async function refreshAccessToken(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
@@ -39,9 +64,13 @@ async function refreshAccessToken(): Promise<boolean> {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
       });
-      return res.ok;
+      latestRefreshResult = res.ok;
+      refreshGeneration += 1;
+      return latestRefreshResult;
     } catch {
-      return false;
+      latestRefreshResult = false;
+      refreshGeneration += 1;
+      return latestRefreshResult;
     } finally {
       refreshPromise = null;
     }
@@ -65,6 +94,9 @@ async function apiClient<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   const { data, params, _retry, ...init } = options;
+  const requestRefreshGeneration = refreshGeneration;
+  const requestSessionGeneration = sessionGeneration;
+  const endpointPath = normalizedEndpoint(endpoint);
 
   let url = `${BASE_URL}${endpoint}`;
   if (params) {
@@ -95,12 +127,24 @@ async function apiClient<T>(
 
   const response = await fetch(url, config);
 
-  // Handle 401 with automatic token refresh
-  if (response.status === 401 && !_retry) {
-    const refreshed = await refreshAccessToken();
+  // Handle protected-request 401s with a single shared refresh.
+  if (
+    response.status === 401 &&
+    !_retry &&
+    !AUTH_ENDPOINTS_WITHOUT_AUTO_REFRESH.has(endpointPath) &&
+    requestSessionGeneration === sessionGeneration
+  ) {
+    const refreshed =
+      requestRefreshGeneration < refreshGeneration
+        ? latestRefreshResult
+        : await refreshAccessToken();
     if (refreshed) {
       return apiClient<T>(endpoint, { ...options, _retry: true });
     }
+  }
+
+  if (response.ok && SESSION_BOUNDARY_ENDPOINTS.has(endpointPath)) {
+    sessionGeneration += 1;
   }
 
   if (!response.ok) {

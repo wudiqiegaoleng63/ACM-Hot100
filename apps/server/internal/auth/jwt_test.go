@@ -154,6 +154,82 @@ func TestParseAccessTokenRejectsInvalidClaims(t *testing.T) {
 	}
 }
 
+func TestParseJWTRejectsInvalidRequiredClaims(t *testing.T) {
+	t.Parallel()
+
+	cfg := testJWTConfig()
+	now := time.Now()
+	validRegisteredClaims := func(audience string) jwt.RegisteredClaims {
+		return jwt.RegisteredClaims{
+			Issuer:    cfg.JWTIssuer,
+			Subject:   "user-123",
+			Audience:  jwt.ClaimStrings{audience},
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
+			NotBefore: jwt.NewNumericDate(now.Add(-time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now.Add(-time.Minute)),
+			ID:        "jti-123",
+		}
+	}
+
+	accessTests := []struct {
+		name   string
+		mutate func(*AccessClaims)
+	}{
+		{name: "wrong issuer", mutate: func(claims *AccessClaims) { claims.Issuer = "other-issuer" }},
+		{name: "wrong audience", mutate: func(claims *AccessClaims) { claims.Audience = jwt.ClaimStrings{"other-audience"} }},
+		{name: "missing expiration", mutate: func(claims *AccessClaims) { claims.ExpiresAt = nil }},
+		{name: "missing not before", mutate: func(claims *AccessClaims) { claims.NotBefore = nil }},
+		{name: "missing JTI", mutate: func(claims *AccessClaims) { claims.ID = "" }},
+	}
+
+	for _, tt := range accessTests {
+		t.Run("access "+tt.name, func(t *testing.T) {
+			t.Parallel()
+			claims := AccessClaims{RegisteredClaims: validRegisteredClaims(cfg.JWTAccessAudience)}
+			tt.mutate(&claims)
+			token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+			tokenString, err := token.SignedString([]byte(cfg.JWTAccessSecret))
+			if err != nil {
+				t.Fatalf("sign access token: %v", err)
+			}
+			if _, err := ParseAccessToken(cfg, tokenString); err == nil {
+				t.Fatal("ParseAccessToken accepted invalid required claims")
+			}
+		})
+	}
+
+	refreshTests := []struct {
+		name   string
+		mutate func(*RefreshClaims)
+	}{
+		{name: "wrong issuer", mutate: func(claims *RefreshClaims) { claims.Issuer = "other-issuer" }},
+		{name: "wrong audience", mutate: func(claims *RefreshClaims) { claims.Audience = jwt.ClaimStrings{"other-audience"} }},
+		{name: "missing expiration", mutate: func(claims *RefreshClaims) { claims.ExpiresAt = nil }},
+		{name: "missing not before", mutate: func(claims *RefreshClaims) { claims.NotBefore = nil }},
+		{name: "missing JTI", mutate: func(claims *RefreshClaims) { claims.ID = "" }},
+		{name: "missing family ID", mutate: func(claims *RefreshClaims) { claims.FamilyID = "" }},
+	}
+
+	for _, tt := range refreshTests {
+		t.Run("refresh "+tt.name, func(t *testing.T) {
+			t.Parallel()
+			claims := RefreshClaims{
+				RegisteredClaims: validRegisteredClaims(cfg.JWTRefreshAudience),
+				FamilyID:         "family-123",
+			}
+			tt.mutate(&claims)
+			token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+			tokenString, err := token.SignedString([]byte(cfg.JWTRefreshSecret))
+			if err != nil {
+				t.Fatalf("sign refresh token: %v", err)
+			}
+			if _, err := ParseRefreshToken(cfg, tokenString); err == nil {
+				t.Fatal("ParseRefreshToken accepted invalid required claims")
+			}
+		})
+	}
+}
+
 func testJWTConfig() *config.Config {
 	return &config.Config{
 		JWTIssuer:          "test-issuer",

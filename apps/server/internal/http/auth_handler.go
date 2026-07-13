@@ -48,10 +48,6 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-type refreshRequest struct {
-	RefreshToken string `json:"refresh_token"`
-}
-
 type forgotPasswordRequest struct {
 	Email string `json:"email" binding:"required,email"`
 }
@@ -219,15 +215,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 // RefreshToken handles POST /api/v1/auth/refresh
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	// Get refresh token from cookie or body
-	refreshTokenStr, _ := c.Cookie("refresh_token")
-
-	var req refreshRequest
-	if c.ShouldBindJSON(&req) == nil && req.RefreshToken != "" {
-		refreshTokenStr = req.RefreshToken
-	}
-
-	if refreshTokenStr == "" {
+	refreshTokenStr, err := c.Cookie("refresh_token")
+	if err != nil || refreshTokenStr == "" {
 		errorResponse(c, http.StatusUnauthorized, "MISSING_TOKEN", "Refresh token required")
 		return
 	}

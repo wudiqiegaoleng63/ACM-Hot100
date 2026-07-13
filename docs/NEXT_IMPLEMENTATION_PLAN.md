@@ -129,7 +129,7 @@ go vet ./...
 
 建议提交信息：`test: 建立前后端测试基线`
 
-### [ ] P15-03 · 修复 JWT Refresh Rotation 与 API Client 刷新边界
+### [x] P15-03 · 修复 JWT Refresh Rotation 与 API Client 刷新边界
 
 目标：连续刷新、旧 Token 复用检测与登录失败行为正确。
 

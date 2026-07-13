@@ -265,56 +265,43 @@ func RefreshToken(rdb *redis.Client, cfg *config.Config, oldRefreshToken string)
 		return "", "", ErrTokenExpired
 	}
 
-	// Detect reuse: if JTI not in session but family exists
-	reuse, err := auth.DetectTokenReuse(rdb, jti, familyID)
-	if err != nil {
-		return "", "", fmt.Errorf("reuse detection error: %w", err)
-	}
-	if reuse {
-		// Revoke entire family
-		auth.RevokeTokenFamily(rdb, familyID)
-		return "", "", ErrTokenReuse
-	}
-
-	// Verify the session exists
-	storedUserID, storedFamilyID, err := auth.GetRefreshSession(rdb, jti)
-	if err != nil {
-		return "", "", ErrTokenExpired
-	}
-
-	// Validate consistency
-	if storedUserID != userID || storedFamilyID != familyID {
-		return "", "", ErrTokenExpired
-	}
-
-	// Rotate: delete old session
-	auth.DeleteRefreshSession(rdb, jti)
-
-	// Generate new token pair
+	// Generate the replacement pair before atomically consuming the old session.
 	newAccessTok, _, err := auth.GenerateAccessToken(cfg, userID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	newRefreshTok, newRefreshJTI, _, err := auth.GenerateRefreshToken(cfg, userID)
+	newRefreshTok, newRefreshJTI, _, err := auth.GenerateRefreshTokenInFamily(cfg, userID, familyID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
-	// New refresh token keeps the same family ID for rotation tracking
 	refreshTTL := time.Duration(cfg.JWTRefreshTTL) * time.Second
-	ctx := context.Background()
-	val := fmt.Sprintf("%s:%s", userID, familyID)
-
-	pipe := rdb.Pipeline()
-	pipe.Set(ctx, queue.KeyAuthRefresh(newRefreshJTI), val, refreshTTL)
-	pipe.SAdd(ctx, queue.KeyAuthFamily(familyID), newRefreshJTI)
-	pipe.Expire(ctx, queue.KeyAuthFamily(familyID), refreshTTL)
-	if _, err := pipe.Exec(ctx); err != nil {
-		return "", "", fmt.Errorf("failed to store new refresh session: %w", err)
+	rotationResult, err := auth.RotateRefreshSession(
+		rdb,
+		jti,
+		newRefreshJTI,
+		userID,
+		familyID,
+		refreshTTL,
+	)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to rotate refresh session: %w", err)
 	}
 
-	return newAccessTok, newRefreshTok, nil
+	switch rotationResult {
+	case auth.RefreshRotationSucceeded:
+		return newAccessTok, newRefreshTok, nil
+	case auth.RefreshRotationReuse:
+		if err := auth.RevokeTokenFamily(rdb, familyID); err != nil {
+			return "", "", fmt.Errorf("failed to revoke reused token family: %w", err)
+		}
+		return "", "", ErrTokenReuse
+	case auth.RefreshRotationExpired, auth.RefreshRotationMismatch:
+		return "", "", ErrTokenExpired
+	default:
+		return "", "", fmt.Errorf("unknown refresh rotation result: %d", rotationResult)
+	}
 }
 
 // Logout invalidates the current access and refresh tokens.

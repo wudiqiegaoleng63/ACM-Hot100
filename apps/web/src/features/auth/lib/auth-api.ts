@@ -10,9 +10,8 @@ export interface User {
   created_at: string;
 }
 
-export interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
+interface AuthResponse {
+  message: string;
 }
 
 export interface RegisterRequest {
@@ -40,12 +39,8 @@ export function resendVerification(email: string): Promise<{ message: string }> 
   return api.post('/auth/resend-verification', { email });
 }
 
-export function login(data: LoginRequest): Promise<AuthTokens> {
+export function login(data: LoginRequest): Promise<AuthResponse> {
   return api.post('/auth/login', data);
-}
-
-export function refreshTokens(): Promise<AuthTokens> {
-  return api.post('/auth/refresh');
 }
 
 export function logout(): Promise<void> {

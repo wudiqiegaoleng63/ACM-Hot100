@@ -48,16 +48,3 @@ export function useLogout() {
     },
   });
 }
-
-// --- useRefreshToken (internal, for 401 handling) ---
-
-export function useRefreshToken() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: () => authApi.refreshTokens(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: authKeys.me });
-    },
-  });
-}

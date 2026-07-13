@@ -37,6 +37,61 @@ func StoreRefreshSession(rdb *redis.Client, jti, userID, familyID string, ttl ti
 	return nil
 }
 
+// RefreshRotationResult describes the outcome of an atomic refresh-token rotation.
+type RefreshRotationResult int64
+
+const (
+	RefreshRotationSucceeded RefreshRotationResult = 1
+	RefreshRotationReuse     RefreshRotationResult = 2
+	RefreshRotationExpired   RefreshRotationResult = 3
+	RefreshRotationMismatch  RefreshRotationResult = 4
+)
+
+var rotateRefreshSessionScript = redis.NewScript(`
+local current = redis.call('GET', KEYS[1])
+if not current then
+  if redis.call('EXISTS', KEYS[2]) == 1 then
+    return 2
+  end
+  return 3
+end
+
+if current ~= ARGV[2] then
+  return 4
+end
+
+redis.call('DEL', KEYS[1])
+redis.call('SREM', KEYS[2], ARGV[1])
+redis.call('SET', KEYS[3], ARGV[3], 'PX', ARGV[5])
+redis.call('SADD', KEYS[2], ARGV[4])
+redis.call('PEXPIRE', KEYS[2], ARGV[5])
+return 1
+`)
+
+// RotateRefreshSession atomically consumes an old refresh session and stores its replacement.
+func RotateRefreshSession(rdb *redis.Client, oldJTI, newJTI, userID, familyID string, ttl time.Duration) (RefreshRotationResult, error) {
+	ctx := context.Background()
+	expectedValue := fmt.Sprintf("%s:%s", userID, familyID)
+	result, err := rotateRefreshSessionScript.Run(
+		ctx,
+		rdb,
+		[]string{
+			queue.KeyAuthRefresh(oldJTI),
+			queue.KeyAuthFamily(familyID),
+			queue.KeyAuthRefresh(newJTI),
+		},
+		oldJTI,
+		expectedValue,
+		expectedValue,
+		newJTI,
+		ttl.Milliseconds(),
+	).Int64()
+	if err != nil {
+		return 0, err
+	}
+	return RefreshRotationResult(result), nil
+}
+
 // GetRefreshSession retrieves the userID and familyID for a refresh token JTI.
 func GetRefreshSession(rdb *redis.Client, jti string) (userID, familyID string, err error) {
 	ctx := context.Background()
@@ -53,35 +108,25 @@ func GetRefreshSession(rdb *redis.Client, jti string) (userID, familyID string, 
 	return parts[0], parts[1], nil
 }
 
-// DeleteRefreshSession removes a single refresh token session.
-func DeleteRefreshSession(rdb *redis.Client, jti string) error {
-	ctx := context.Background()
-	return rdb.Del(ctx, queue.KeyAuthRefresh(jti)).Err()
-}
+var revokeTokenFamilyScript = redis.NewScript(`
+local members = redis.call('SMEMBERS', KEYS[1])
+for _, member in ipairs(members) do
+  redis.call('DEL', ARGV[1] .. member)
+end
+redis.call('DEL', KEYS[1])
+return #members
+`)
 
-// RevokeTokenFamily revokes all refresh tokens in a family by deleting
-// the family set and all individual session keys.
+// RevokeTokenFamily atomically deletes a family and all of its refresh sessions.
 func RevokeTokenFamily(rdb *redis.Client, familyID string) error {
 	ctx := context.Background()
-	familyKey := queue.KeyAuthFamily(familyID)
-
-	// Get all JTIs in the family
-	jtis, err := rdb.SMembers(ctx, familyKey).Result()
-	if err != nil {
-		return err
-	}
-
-	// Delete all individual session keys and the family set
-	if len(jtis) > 0 {
-		keys := make([]string, len(jtis))
-		for i, jti := range jtis {
-			keys[i] = queue.KeyAuthRefresh(jti)
-		}
-		rdb.Del(ctx, keys...)
-	}
-
-	rdb.Del(ctx, familyKey)
-	return nil
+	refreshKeyPrefix := queue.KeyAuthRefresh("")
+	return revokeTokenFamilyScript.Run(
+		ctx,
+		rdb,
+		[]string{queue.KeyAuthFamily(familyID)},
+		refreshKeyPrefix,
+	).Err()
 }
 
 // RevokeAllUserFamilies revokes all refresh token families for a user.
@@ -105,35 +150,6 @@ func RevokeAllUserFamilies(rdb *redis.Client, userID string) error {
 	// Clean up the user families set
 	rdb.Del(ctx, userFamiliesKey)
 	return nil
-}
-
-// DetectTokenReuse checks if a refresh token JTI has already been consumed.
-// If the JTI is not in the session store but the family still exists,
-// this indicates token reuse (theft), and the entire family should be revoked.
-func DetectTokenReuse(rdb *redis.Client, jti, familyID string) (bool, error) {
-	ctx := context.Background()
-
-	// Check if the JTI session exists
-	_, err := rdb.Get(ctx, queue.KeyAuthRefresh(jti)).Result()
-	if err == redis.Nil {
-		// JTI not found - check if the family still exists
-		exists, err := rdb.Exists(ctx, queue.KeyAuthFamily(familyID)).Result()
-		if err != nil {
-			return false, err
-		}
-		if exists > 0 {
-			// Family exists but JTI doesn't = reuse detected
-			return true, nil
-		}
-		// Family also gone - token is simply expired
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
-	// JTI found - not reused
-	return false, nil
 }
 
 // StoreDeniedAccessJTI adds an access token JTI to the deny list (for logout).
