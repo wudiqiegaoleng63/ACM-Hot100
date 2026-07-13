@@ -28,3 +28,176 @@ body {
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
+
+button,
+a,
+input,
+select {
+  outline-color: var(--accent);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .nav-link {
+    @apply inline-flex cursor-pointer items-center gap-1.5 px-2 py-2 text-sm font-medium no-underline transition-colors;
+    color: var(--text-muted);
+  }
+
+  .nav-link:hover,
+  .nav-link-active {
+    color: var(--accent);
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.16em];
+    color: var(--accent);
+  }
+
+  .primary-button,
+  .secondary-button {
+    @apply inline-flex min-h-10 cursor-pointer items-center justify-center border px-4 py-2 text-sm font-semibold transition-colors;
+  }
+
+  .primary-button {
+    border-color: var(--accent);
+    background-color: var(--accent);
+    color: white;
+  }
+
+  .primary-button:hover {
+    border-color: var(--accent-hover);
+    background-color: var(--accent-hover);
+  }
+
+  .secondary-button {
+    border-color: var(--border);
+    background-color: var(--surface);
+    color: var(--text);
+  }
+
+  .secondary-button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .field-control {
+    @apply h-10 w-full border px-3 text-sm;
+    border-color: var(--border);
+    background-color: var(--surface);
+    color: var(--text);
+  }
+
+  .field-control:focus {
+    border-color: var(--accent);
+  }
+
+  .tag {
+    @apply inline-flex items-center px-2 py-1 text-xs;
+    background-color: var(--surface-subtle);
+    color: var(--text-muted);
+  }
+
+  .difficulty {
+    @apply inline-flex items-center px-2 py-1 text-xs font-semibold;
+  }
+
+  .difficulty-easy {
+    background-color: var(--success-soft);
+    color: var(--success);
+  }
+
+  .difficulty-medium {
+    background-color: var(--warning-soft);
+    color: var(--warning);
+  }
+
+  .difficulty-hard {
+    background-color: var(--danger-soft);
+    color: var(--danger);
+  }
+
+  .section-heading {
+    @apply text-xl font-semibold tracking-tight;
+  }
+}
+
+.problem-markdown {
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+
+.problem-markdown > :first-child {
+  margin-top: 0;
+}
+
+.problem-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.problem-markdown p,
+.problem-markdown ul,
+.problem-markdown ol,
+.problem-markdown pre,
+.problem-markdown blockquote,
+.problem-markdown table {
+  margin-block: 0.9rem;
+}
+
+.problem-markdown ul,
+.problem-markdown ol {
+  padding-left: 1.5rem;
+}
+
+.problem-markdown ul {
+  list-style: disc;
+}
+
+.problem-markdown ol {
+  list-style: decimal;
+}
+
+.problem-markdown code {
+  border: 1px solid var(--border);
+  background-color: var(--surface-subtle);
+  padding: 0.1rem 0.3rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.problem-markdown pre {
+  overflow-x: auto;
+  border: 1px solid var(--editor-border);
+  background-color: var(--editor-bg);
+  padding: 1rem;
+  color: white;
+}
+
+.problem-markdown pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.problem-markdown blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1rem;
+  color: var(--text-muted);
+}
+
+.problem-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.problem-markdown th,
+.problem-markdown td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.problem-markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+}

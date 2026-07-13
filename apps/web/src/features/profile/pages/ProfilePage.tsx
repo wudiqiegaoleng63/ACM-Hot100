@@ -1,10 +1,10 @@
+import FuturePhaseState from '@/components/FuturePhaseState';
+
 export default function ProfilePage() {
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Profile</h1>
-      <p style={{ color: 'var(--text-muted)' }}>
-        Profile page coming soon
-      </p>
-    </div>
+    <FuturePhaseState
+      title="个人进度将在后续阶段开放"
+      description="完成正式提交与判题链路后，这里会展示由真实提交产生的解题进度。"
+    />
   );
 }

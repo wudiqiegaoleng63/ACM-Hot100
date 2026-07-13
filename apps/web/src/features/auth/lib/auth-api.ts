@@ -13,7 +13,8 @@ export interface User {
   id: string;
   email: string;
   username: string;
-  email_verified: boolean;
+  email_verified_at: string | null;
+  status: 'PENDING' | 'ACTIVE' | 'DISABLED';
   created_at: string;
 }
 
@@ -66,6 +67,7 @@ export function resetPassword(token: string, password: string): Promise<{ messag
   return api.post('/auth/reset-password', { token, new_password: password });
 }
 
-export function getCurrentUser(): Promise<User> {
-  return api.get('/auth/me');
+export async function getCurrentUser(): Promise<User> {
+  const response = await api.get<{ user: User }>('/auth/me');
+  return response.user;
 }

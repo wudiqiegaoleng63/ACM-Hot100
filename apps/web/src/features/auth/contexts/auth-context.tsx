@@ -74,7 +74,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
         <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Loading...
+          正在恢复登录状态…
         </div>
       </div>
     );

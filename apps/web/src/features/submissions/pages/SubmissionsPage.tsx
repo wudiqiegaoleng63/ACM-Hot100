@@ -1,10 +1,10 @@
+import FuturePhaseState from '@/components/FuturePhaseState';
+
 export default function SubmissionsPage() {
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Submissions</h1>
-      <p style={{ color: 'var(--text-muted)' }}>
-        Submissions page coming soon
-      </p>
-    </div>
+    <FuturePhaseState
+      title="提交记录将在后续阶段开放"
+      description="完成代码编辑器与判题链路后，这里会展示真实提交及其判题状态。"
+    />
   );
 }

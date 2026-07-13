@@ -1,58 +1,65 @@
-import { Link, Outlet } from 'react-router';
-import { Flame, ListChecks, Send, User } from 'lucide-react';
+import { Flame, ListChecks, LogIn, LogOut, Send, User } from 'lucide-react';
+import { Link, NavLink, Outlet } from 'react-router';
+
+import { useAuth } from '@/features/auth/contexts/auth-context';
 
 export default function RootLayout() {
+  const { user, isLoading, logout } = useAuth();
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <header
-        className="sticky top-0 z-50 border-b"
-        style={{
-          backgroundColor: 'var(--surface)',
-          borderColor: 'var(--border)',
-        }}
-      >
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold text-lg no-underline" style={{ color: 'var(--accent)' }}>
-            <Flame size={24} />
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--surface)]">
+        <div className="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-4">
+          <Link className="flex items-center gap-2 text-base font-bold no-underline text-[var(--accent)] sm:text-lg" to="/">
+            <Flame aria-hidden="true" size={22} />
             ACM HOT 100
           </Link>
-          <nav className="flex items-center gap-6">
-            <Link
-              to="/problems"
-              className="flex items-center gap-1.5 text-sm font-medium no-underline transition-colors"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-            >
-              <ListChecks size={16} />
-              Problems
-            </Link>
-            <Link
-              to="/submissions"
-              className="flex items-center gap-1.5 text-sm font-medium no-underline transition-colors"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-            >
-              <Send size={16} />
-              Submissions
-            </Link>
-            <Link
-              to="/profile"
-              className="flex items-center gap-1.5 text-sm font-medium no-underline transition-colors"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-            >
-              <User size={16} />
-              Profile
-            </Link>
+          <nav className="flex items-center gap-1 sm:gap-4" aria-label="主导航">
+            <NavItem icon={<ListChecks size={16} />} label="题库" to="/problems" />
+            <NavItem icon={<Send size={16} />} label="提交记录" to="/submissions" hideOnMobile />
+            <NavItem icon={<User size={16} />} label="进度" to="/profile" hideOnMobile />
+            {!isLoading && (user ? (
+              <button
+                aria-label="退出登录"
+                className="nav-link border-0 bg-transparent"
+                onClick={() => void logout()}
+                title={`${user.username}，退出登录`}
+              >
+                <LogOut aria-hidden="true" size={16} />
+                <span className="hidden sm:inline">退出</span>
+              </button>
+            ) : (
+              <NavItem icon={<LogIn size={16} />} label="登录" to="/login" />
+            ))}
           </nav>
         </div>
       </header>
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
-        <Outlet />
-      </main>
+      <main className="w-full flex-1 px-4 py-6 lg:py-8"><Outlet /></main>
+      <footer className="border-t border-[var(--border)] px-4 py-5 text-center text-xs text-[var(--text-muted)]">
+        独立学习项目，非 LeetCode 官方产品
+      </footer>
     </div>
+  );
+}
+
+function NavItem({
+  to,
+  icon,
+  label,
+  hideOnMobile = false,
+}: {
+  to: string;
+  icon: React.ReactNode;
+  label: string;
+  hideOnMobile?: boolean;
+}) {
+  return (
+    <NavLink
+      className={({ isActive }) => `nav-link ${isActive ? 'nav-link-active' : ''} ${hideOnMobile ? 'hidden sm:inline-flex' : ''}`}
+      to={to}
+    >
+      {icon}
+      <span>{label}</span>
+    </NavLink>
   );
 }
