@@ -48,6 +48,7 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 
 		// Problems routes
 		problems := v1.Group("/problems")
+		problems.Use(OptionalAuth(cfg, rdb))
 		{
 			problems.GET("", listProblems(db))
 			problems.GET("/:slug", getProblem(db))
@@ -62,8 +63,9 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 			}
 		}
 
-		// Tags
+		// Public content metadata
 		v1.GET("/tags", listTags(db))
+		v1.GET("/languages", listLanguages(db))
 
 		// Submissions routes (placeholder)
 		submissions := v1.Group("/submissions")

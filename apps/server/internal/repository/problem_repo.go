@@ -54,7 +54,7 @@ func ListProblems(db *gorm.DB, q, difficulty, tag, state, userID string, page, p
 		return nil, 0, err
 	}
 
-	// Build result with optional user state
+	// Build result with optional user state.
 	results := make([]ProblemWithStatus, len(problems))
 
 	if userID != "" && len(problems) > 0 {
@@ -70,22 +70,13 @@ func ListProblems(db *gorm.DB, q, difficulty, tag, state, userID string, page, p
 			return nil, 0, err
 		}
 
-		// Build a map of problemID -> state
-		progressMap := make(map[string]string, len(progress))
-		for _, p := range progress {
-			progressMap[p.ProblemID] = p.State
-		}
+		results = mapProblemProgress(problems, progress)
 
-		// Filter by state if requested
-		for i, p := range problems {
-			s, ok := progressMap[p.ID]
-			if !ok {
-				s = model.ProgressNotStarted
+		// Filter by state if requested.
+		for i, result := range results {
+			if state != "" && result.State != state {
+				results[i] = ProblemWithStatus{}
 			}
-			if state != "" && s != state {
-				continue
-			}
-			results[i] = ProblemWithStatus{Problem: p, State: s}
 		}
 
 		// If state filter was applied, we need to re-filter and re-count
@@ -136,12 +127,30 @@ func ListProblems(db *gorm.DB, q, difficulty, tag, state, userID string, page, p
 		return []ProblemWithStatus{}, 0, nil
 	}
 
-	// No state filter or no userID: just map problems to results
-	for i, p := range problems {
-		results[i] = ProblemWithStatus{Problem: p}
+	if userID == "" {
+		for i, problem := range problems {
+			results[i] = ProblemWithStatus{Problem: problem}
+		}
 	}
 
 	return results, int(total), nil
+}
+
+func mapProblemProgress(problems []model.Problem, progress []model.UserProblemProgress) []ProblemWithStatus {
+	progressByProblem := make(map[string]string, len(progress))
+	for _, item := range progress {
+		progressByProblem[item.ProblemID] = item.State
+	}
+
+	results := make([]ProblemWithStatus, len(problems))
+	for i, problem := range problems {
+		state := progressByProblem[problem.ID]
+		if state == "" {
+			state = model.ProgressNotStarted
+		}
+		results[i] = ProblemWithStatus{Problem: problem, State: state}
+	}
+	return results
 }
 
 // GetProblemBySlug returns a single problem by its slug, or nil if not found.
