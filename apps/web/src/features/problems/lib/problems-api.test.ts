@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  createSampleRun,
   getDraft,
+  getHealth,
   getLanguages,
   getProblem,
   getProblems,
+  getSampleRun,
+  isTerminalRunStatus,
   saveDraft,
 } from './problems-api';
 
@@ -130,6 +134,95 @@ describe('problems API contract', () => {
     vi.stubGlobal('fetch', jsonFetch(payload));
 
     await expect(getLanguages()).resolves.toEqual(payload);
+  });
+
+  it('creates a sample run and parses the response with QUEUED status', async () => {
+    const payload = {
+      id: 'run-1',
+      language_key: 'cpp17',
+      sample_case_id: 'sample-1',
+      input_data: '1 2\n',
+      status: 'QUEUED',
+      output_data: '',
+      error_message: '',
+      created_at: '2026-07-14T00:00:00Z',
+      updated_at: '2026-07-14T00:00:00Z',
+      started_at: null,
+      finished_at: null,
+      expires_at: '2026-07-15T00:00:00Z',
+    };
+    const fetchMock = jsonFetch(payload);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      createSampleRun('two-sum-target', {
+        language_key: 'cpp17',
+        source_code: 'int main() {}',
+        sample_case_id: 'sample-1',
+      }),
+    ).resolves.toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/problems/two-sum-target/run',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('polls a sample run and parses the AC terminal status', async () => {
+    const payload = {
+      id: 'run-1',
+      language_key: 'cpp17',
+      sample_case_id: null,
+      input_data: 'custom',
+      status: 'AC',
+      output_data: '3\n',
+      error_message: '',
+      created_at: '2026-07-14T00:00:00Z',
+      updated_at: '2026-07-14T00:00:01Z',
+      started_at: '2026-07-14T00:00:00.5Z',
+      finished_at: '2026-07-14T00:00:01Z',
+      expires_at: '2026-07-15T00:00:00Z',
+    };
+    vi.stubGlobal('fetch', jsonFetch(payload));
+
+    await expect(getSampleRun('run-1')).resolves.toEqual(payload);
+  });
+
+  it('rejects an unknown sample run status', async () => {
+    const payload = {
+      id: 'run-1',
+      language_key: 'cpp17',
+      sample_case_id: null,
+      input_data: '',
+      status: 'UNKNOWN',
+      output_data: '',
+      error_message: '',
+      created_at: '2026-07-14T00:00:00Z',
+      updated_at: '2026-07-14T00:00:00Z',
+      started_at: null,
+      finished_at: null,
+      expires_at: '2026-07-15T00:00:00Z',
+    };
+    vi.stubGlobal('fetch', jsonFetch(payload));
+
+    await expect(getSampleRun('run-1')).rejects.toThrow();
+  });
+
+  it('identifies AC and SYSTEM_ERROR as terminal statuses', () => {
+    expect(isTerminalRunStatus('AC')).toBe(true);
+    expect(isTerminalRunStatus('SYSTEM_ERROR')).toBe(true);
+    expect(isTerminalRunStatus('QUEUED')).toBe(false);
+    expect(isTerminalRunStatus('RUNNING')).toBe(false);
+  });
+
+  it('parses the health response with judge_mode', async () => {
+    const payload = {
+      status: 'ok',
+      services: { mysql: 'ok', redis: 'ok' },
+      judge_mode: 'mock',
+    };
+    vi.stubGlobal('fetch', jsonFetch(payload));
+
+    await expect(getHealth()).resolves.toEqual(payload);
   });
 });
 

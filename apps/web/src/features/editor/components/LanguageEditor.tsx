@@ -25,9 +25,11 @@ interface PendingSave {
 export default function LanguageEditor({
   problemSlug,
   userID,
+  onStateChange,
 }: {
   problemSlug: string;
   userID?: string;
+  onStateChange?: (state: { languageKey: string; sourceCode: string }) => void;
 }) {
   const languagesQuery = useLanguages();
   const saveDraft = useSaveDraft();
@@ -44,6 +46,15 @@ export default function LanguageEditor({
   const currentContext = draftContext(owner, problemSlug, languageKey);
 
   saveDraftRef.current = saveDraft.mutateAsync;
+
+  // Notify parent of current language and source code
+  const onStateChangeRef = useRef(onStateChange);
+  onStateChangeRef.current = onStateChange;
+  useEffect(() => {
+    if (languageKey && restoredContext === currentContext) {
+      onStateChangeRef.current?.({ languageKey, sourceCode });
+    }
+  }, [languageKey, sourceCode, currentContext, restoredContext]);
 
   const flushPendingSave = useCallback(() => {
     const pending = pendingSave.current;

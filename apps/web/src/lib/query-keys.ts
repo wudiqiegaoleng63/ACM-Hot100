@@ -26,6 +26,14 @@ export const draftKeys = {
     ['drafts', userID, problemSlug, languageKey] as const,
 };
 
+export const runKeys = {
+  detail: (runID: string) => ['runs', runID] as const,
+};
+
+export const healthKeys = {
+  all: ['health'] as const,
+};
+
 export const submissionKeys = {
   all: ['submissions'] as const,
   list: (params?: unknown) =>

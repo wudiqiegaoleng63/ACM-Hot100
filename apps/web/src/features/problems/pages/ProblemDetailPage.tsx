@@ -1,6 +1,7 @@
 import 'katex/dist/katex.min.css';
 
 import { Clock3, Database } from 'lucide-react';
+import { useCallback, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useParams } from 'react-router';
 import rehypeKatex from 'rehype-katex';
@@ -24,6 +25,11 @@ export default function ProblemDetailPage() {
   const { user } = useAuth();
   const problem = useProblem(slug);
   const navigation = useProblemNavigation(slug);
+  const [editorState, setEditorState] = useState({ languageKey: '', sourceCode: '' });
+
+  const handleEditorStateChange = useCallback((state: { languageKey: string; sourceCode: string }) => {
+    setEditorState(state);
+  }, []);
 
   if (problem.status === 'pending') {
     return <PageMessage>正在加载题目…</PageMessage>;
@@ -41,11 +47,15 @@ export default function ProblemDetailPage() {
 
   return (
     <ProblemWorkspace
-      statement={<ProblemStatement data={problem.data} />}
-      editor={<LanguageEditor problemSlug={slug} userID={user?.id} />}
+      statement={<ProblemStatement data={problem.data!} />}
+      editor={<LanguageEditor problemSlug={slug} userID={user?.id} onStateChange={handleEditorStateChange} />}
       previous={navigation.data?.prev ?? null}
       next={navigation.data?.next ?? null}
       isAuthenticated={Boolean(user)}
+      problemSlug={slug}
+      sampleCases={problem.data!.sample_cases}
+      languageKey={editorState.languageKey}
+      sourceCode={editorState.sourceCode}
     />
   );
 }

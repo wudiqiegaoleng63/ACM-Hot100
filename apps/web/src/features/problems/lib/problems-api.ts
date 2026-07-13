@@ -100,6 +100,63 @@ export interface ProblemListParams {
 
 export type DraftData = z.infer<typeof draftSchema>;
 
+// --- Sample Run types and API ---
+
+export const sampleRunStatusSchema = z.enum(['QUEUED', 'RUNNING', 'AC', 'SYSTEM_ERROR']);
+export type SampleRunStatus = z.infer<typeof sampleRunStatusSchema>;
+
+const sampleRunResponseSchema = z.object({
+  id: z.string(),
+  language_key: z.string(),
+  sample_case_id: z.string().nullable(),
+  input_data: z.string(),
+  status: sampleRunStatusSchema,
+  output_data: z.string(),
+  error_message: z.string(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+  started_at: z.string().datetime({ offset: true }).nullable(),
+  finished_at: z.string().datetime({ offset: true }).nullable(),
+  expires_at: z.string().datetime({ offset: true }),
+});
+
+export type SampleRunResponse = z.infer<typeof sampleRunResponseSchema>;
+
+export interface CreateSampleRunParams {
+  language_key: string;
+  source_code: string;
+  sample_case_id?: string;
+  custom_input?: string;
+}
+
+export function isTerminalRunStatus(status: SampleRunStatus): boolean {
+  return status === 'AC' || status === 'SYSTEM_ERROR';
+}
+
+export async function createSampleRun(slug: string, params: CreateSampleRunParams): Promise<SampleRunResponse> {
+  return sampleRunResponseSchema.parse(
+    await api.post<unknown>(`/problems/${slug}/run`, params),
+  );
+}
+
+export async function getSampleRun(runID: string): Promise<SampleRunResponse> {
+  return sampleRunResponseSchema.parse(await api.get<unknown>(`/runs/${runID}`));
+}
+
+// --- Health / Judge Mode ---
+
+const healthResponseSchema = z.object({
+  status: z.string(),
+  services: z.record(z.string()),
+  judge_mode: z.enum(['mock', 'judge0']),
+});
+
+export type HealthResponse = z.infer<typeof healthResponseSchema>;
+
+export async function getHealth(): Promise<HealthResponse> {
+  return healthResponseSchema.parse(await api.get<unknown>('/health'));
+}
+
 export async function getProblems(params?: ProblemListParams): Promise<ProblemListResponse> {
   const response = await api.get<unknown>(
     '/problems',

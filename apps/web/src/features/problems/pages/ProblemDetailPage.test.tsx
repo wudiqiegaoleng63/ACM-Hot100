@@ -30,7 +30,7 @@ describe('ProblemDetailPage', () => {
     expect(screen.getByText('正在加载题目…')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: '两数目标和' })).toBeInTheDocument();
     expect(document.querySelector('.katex')).not.toBeNull();
-    expect(screen.getByText('样例 1')).toBeInTheDocument();
+    expect(screen.getAllByText('样例 1').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('256 MB')).toBeInTheDocument();
   });
 

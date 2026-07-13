@@ -24,8 +24,8 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	r.Use(RequestID())
 	r.Use(CORSConfig(cfg))
 
-	// Health check
-	r.GET("/api/v1/health", healthCheck(db, rdb))
+	// Health check (exposes judge_mode so frontend can show Mock Judge badge)
+	r.GET("/api/v1/health", healthCheck(db, rdb, cfg))
 
 	// API v1 route group
 	v1 := r.Group("/api/v1")
@@ -84,7 +84,7 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 }
 
 // healthCheck returns a handler that checks MySQL and Redis connectivity.
-func healthCheck(db *gorm.DB, rdb *redis.Client) gin.HandlerFunc {
+func healthCheck(db *gorm.DB, rdb *redis.Client, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		services := make(map[string]string)
 
@@ -114,8 +114,9 @@ func healthCheck(db *gorm.DB, rdb *redis.Client) gin.HandlerFunc {
 		}
 
 		c.JSON(status, gin.H{
-			"status":   "ok",
-			"services": services,
+			"status":     "ok",
+			"services":   services,
+			"judge_mode": cfg.JudgeMode,
 		})
 	}
 }

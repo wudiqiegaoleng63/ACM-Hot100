@@ -1,7 +1,9 @@
+import { useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { problemKeys, tagKeys, languageKeys, draftKeys } from '@/lib/query-keys';
+import { problemKeys, tagKeys, languageKeys, draftKeys, runKeys, healthKeys } from '@/lib/query-keys';
 import * as problemsApi from '@/features/problems/lib/problems-api';
-import type { ProblemListParams } from '@/features/problems/lib/problems-api';
+import type { ProblemListParams, CreateSampleRunParams } from '@/features/problems/lib/problems-api';
+import { isTerminalRunStatus } from '@/features/problems/lib/problems-api';
 
 // --- useProblems ---
 
@@ -77,6 +79,55 @@ export function useDraft(userID: string | undefined, slug: string, languageKey: 
     queryKey: draftKeys.detail(userID ?? 'guest', slug, languageKey),
     queryFn: () => problemsApi.getDraft(slug, languageKey),
     enabled: Boolean(userID && slug && languageKey),
+    retry: false,
+  });
+}
+
+// --- useCreateSampleRun ---
+
+export function useCreateSampleRun() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ slug, params }: { slug: string; params: CreateSampleRunParams }) =>
+      problemsApi.createSampleRun(slug, params),
+    onSuccess: (run) => {
+      queryClient.setQueryData(runKeys.detail(run.id), run);
+    },
+  });
+}
+
+// --- useSampleRun (polling) ---
+
+const FAST_POLL_MS = 800;
+const SLOW_POLL_MS = 2000;
+const FAST_POLL_DURATION_MS = 10_000;
+
+export function useSampleRun(runID: string | null) {
+  const createdAt = useRef<number | null>(null);
+
+  return useQuery({
+    queryKey: runKeys.detail(runID ?? ''),
+    queryFn: () => problemsApi.getSampleRun(runID!),
+    enabled: Boolean(runID),
+    refetchInterval: (query) => {
+      if (!query.state.data) return FAST_POLL_MS;
+      if (isTerminalRunStatus(query.state.data.status)) return false;
+      if (createdAt.current === null) createdAt.current = Date.now();
+      const elapsed = Date.now() - createdAt.current;
+      return elapsed < FAST_POLL_DURATION_MS ? FAST_POLL_MS : SLOW_POLL_MS;
+    },
+    refetchIntervalInBackground: false,
+  });
+}
+
+// --- useHealth (judge mode) ---
+
+export function useHealth() {
+  return useQuery({
+    queryKey: healthKeys.all,
+    queryFn: () => problemsApi.getHealth(),
+    staleTime: 5 * 60 * 1000,
     retry: false,
   });
 }
