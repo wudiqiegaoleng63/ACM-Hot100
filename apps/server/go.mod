@@ -3,6 +3,7 @@ module github.com/acmhot100/server
 go 1.26.1
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/alexedwards/argon2id v1.0.0
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/gin-gonic/gin v1.12.0

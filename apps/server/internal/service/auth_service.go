@@ -117,8 +117,8 @@ func VerifyEmail(db *gorm.DB, rdb *redis.Client, rawToken string) error {
 	ctx := context.Background()
 	verifyKey := queue.KeyAuthVerify(tokenHash)
 
-	// Look up the token in Redis
-	userID, err := rdb.Get(ctx, verifyKey).Result()
+	// Atomically consume the token so concurrent requests cannot reuse it.
+	userID, err := auth.ConsumeOneTimeToken(rdb, verifyKey)
 	if err == redis.Nil {
 		return ErrTokenExpired
 	}
@@ -126,11 +126,9 @@ func VerifyEmail(db *gorm.DB, rdb *redis.Client, rawToken string) error {
 		return fmt.Errorf("redis error: %w", err)
 	}
 
-	// Atomic: delete the token (single use) and the user tracking key
-	pipe := rdb.Pipeline()
-	pipe.Del(ctx, verifyKey)
-	pipe.Del(ctx, queue.KeyAuthVerifyUser(userID))
-	pipe.Exec(ctx)
+	if err := rdb.Del(ctx, queue.KeyAuthVerifyUser(userID)).Err(); err != nil {
+		return fmt.Errorf("failed to delete verify token tracking: %w", err)
+	}
 
 	// Update user status to ACTIVE
 	user, err := repository.GetUserByID(db, userID)
@@ -213,14 +211,15 @@ func Login(db *gorm.DB, rdb *redis.Client, cfg *config.Config, email, password s
 		return "", "", ErrInvalidCredentials
 	}
 
-	// Check if email is verified
-	if user.Status != model.UserStatusActive {
-		return "", "", ErrInvalidCredentials
-	}
-
-	// Check password
+	// Check password before revealing whether the account is verified.
 	match, err := auth.CheckPassword(password, user.PasswordHash)
 	if err != nil || !match {
+		return "", "", ErrInvalidCredentials
+	}
+	if user.Status == model.UserStatusPending {
+		return "", "", ErrEmailNotVerified
+	}
+	if user.Status != model.UserStatusActive {
 		return "", "", ErrInvalidCredentials
 	}
 
@@ -369,20 +368,16 @@ func ResetPassword(db *gorm.DB, rdb *redis.Client, rawToken string, newPassword 
 	}
 
 	tokenHash := auth.HashToken(rawToken)
-	ctx := context.Background()
 	resetKey := queue.KeyAuthReset(tokenHash)
 
-	// Look up the token in Redis
-	userID, err := rdb.Get(ctx, resetKey).Result()
+	// Atomically consume the token so concurrent requests cannot reuse it.
+	userID, err := auth.ConsumeOneTimeToken(rdb, resetKey)
 	if err == redis.Nil {
 		return ErrTokenExpired
 	}
 	if err != nil {
 		return fmt.Errorf("redis error: %w", err)
 	}
-
-	// Atomic: delete the token (single use)
-	rdb.Del(ctx, resetKey)
 
 	// Update password
 	user, err := repository.GetUserByID(db, userID)
@@ -400,8 +395,10 @@ func ResetPassword(db *gorm.DB, rdb *redis.Client, rawToken string, newPassword 
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 
-	// Revoke ALL refresh token families for this user
-	auth.RevokeAllUserFamilies(rdb, userID)
+	// Revoke ALL refresh token families for this user.
+	if err := auth.RevokeAllUserFamilies(rdb, userID); err != nil {
+		return fmt.Errorf("failed to revoke refresh sessions: %w", err)
+	}
 
 	return nil
 }

@@ -157,7 +157,7 @@ npm run build
 
 建议提交信息：`fix: 修复 JWT 刷新轮换和客户端刷新边界`
 
-### [ ] P15-04 · 原子化邮箱 Token 并打通 Mailpit 认证闭环
+### [x] P15-04 · 原子化邮箱 Token 并打通 Mailpit 认证闭环
 
 目标：验证邮件、重置邮件和单次 Token 行为得到端到端证据。
 

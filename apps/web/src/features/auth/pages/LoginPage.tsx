@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@/features/auth/contexts/auth-context';
+import { AUTH_ERROR_CODES } from '@/features/auth/lib/auth-api';
 import { ApiError } from '@/lib/api-client';
 import { LogIn, Mail, Lock } from 'lucide-react';
 
@@ -35,9 +36,9 @@ export default function LoginPage() {
       navigate(from, { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.code === 'INVALID_CREDENTIALS') {
+        if (err.code === AUTH_ERROR_CODES.invalidCredentials) {
           setError('root.serverError', { message: '邮箱或密码不正确' });
-        } else if (err.code === 'EMAIL_NOT_VERIFIED') {
+        } else if (err.code === AUTH_ERROR_CODES.emailNotVerified) {
           setError('root.serverError', { message: '邮箱未验证，请先查收验证邮件' });
         } else {
           setError('root.serverError', { message: err.message });

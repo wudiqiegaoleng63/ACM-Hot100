@@ -119,9 +119,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		case errors.Is(err, service.ErrInvalidInput):
 			errorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 		case errors.Is(err, service.ErrEmailTaken):
-			errorResponse(c, http.StatusConflict, "EMAIL_TAKEN", "Email is already registered")
+			errorResponse(c, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "Email is already registered")
 		case errors.Is(err, service.ErrUsernameTaken):
-			errorResponse(c, http.StatusConflict, "USERNAME_TAKEN", "Username is already taken")
+			errorResponse(c, http.StatusConflict, "USERNAME_ALREADY_EXISTS", "Username is already taken")
 		default:
 			errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to register")
 		}
@@ -200,6 +200,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			errorResponse(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid email or password")
+		} else if errors.Is(err, service.ErrEmailNotVerified) {
+			errorResponse(c, http.StatusForbidden, "EMAIL_NOT_VERIFIED", "Email address is not verified")
 		} else {
 			errorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Login failed")
 		}

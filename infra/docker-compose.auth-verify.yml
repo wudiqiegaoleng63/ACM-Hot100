@@ -1,0 +1,75 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: acmhot100
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.30.4
+    ports:
+      - "127.0.0.1:18025:8025"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:8025/livez"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    image: golang:1.26.1
+    working_dir: /workspace/apps/server
+    command: ["go", "run", "./cmd/api"]
+    volumes:
+      - type: bind
+        source: ..
+        target: /workspace
+        read_only: true
+      - go_modules:/go/pkg/mod
+      - go_build:/root/.cache/go-build
+    env_file:
+      - app.env
+    environment:
+      APP_ENV: development
+      APP_BASE_URL: http://localhost:5173
+      API_ADDR: ":8080"
+      MYSQL_DSN: "app:app@tcp(mysql:3306)/acmhot100?charset=utf8mb4&parseTime=True&loc=UTC"
+      REDIS_ADDR: redis:6379
+      REDIS_DB: 0
+      REDIS_KEY_PREFIX: "auth-verify:"
+      JWT_ISSUER: acmhot100
+      JWT_ACCESS_AUDIENCE: acmhot100-web
+      JWT_REFRESH_AUDIENCE: acmhot100-refresh
+      JWT_ACCESS_SECRET: auth-verify-access-secret-at-least-32-bytes
+      JWT_REFRESH_SECRET: auth-verify-refresh-secret-at-least-32-bytes
+      JWT_ACCESS_TTL: 900
+      JWT_REFRESH_TTL: 604800
+      SMTP_FROM: "ACM Hot 100 <no-reply@example.local>"
+      JUDGE_MODE: mock
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+
+volumes:
+  go_modules:
+  go_build:

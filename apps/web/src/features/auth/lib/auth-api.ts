@@ -1,5 +1,12 @@
 import { api } from '@/lib/api-client';
 
+export const AUTH_ERROR_CODES = {
+  emailAlreadyExists: 'EMAIL_ALREADY_EXISTS',
+  usernameAlreadyExists: 'USERNAME_ALREADY_EXISTS',
+  invalidCredentials: 'INVALID_CREDENTIALS',
+  emailNotVerified: 'EMAIL_NOT_VERIFIED',
+} as const;
+
 // --- Types ---
 
 export interface User {
@@ -56,7 +63,7 @@ export function forgotPassword(email: string): Promise<{ message: string }> {
 }
 
 export function resetPassword(token: string, password: string): Promise<{ message: string }> {
-  return api.post('/auth/reset-password', { token, password });
+  return api.post('/auth/reset-password', { token, new_password: password });
 }
 
 export function getCurrentUser(): Promise<User> {

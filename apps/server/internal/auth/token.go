@@ -1,15 +1,23 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // HashToken returns the SHA-256 hex digest of a raw token.
 func HashToken(rawToken string) string {
 	h := sha256.Sum256([]byte(rawToken))
 	return hex.EncodeToString(h[:])
+}
+
+// ConsumeOneTimeToken atomically reads and deletes a token value.
+func ConsumeOneTimeToken(rdb *redis.Client, key string) (string, error) {
+	return rdb.GetDel(context.Background(), key).Result()
 }
 
 // GenerateVerifyToken generates a 32-byte random token for email verification.

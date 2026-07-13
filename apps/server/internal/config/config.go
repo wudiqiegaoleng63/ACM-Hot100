@@ -34,6 +34,7 @@ type Config struct {
 	JWTRefreshTTL      int // seconds
 
 	// SMTP
+	MailMode     string // "smtp" or "log"
 	SMTPHost     string
 	SMTPPort     int
 	SMTPUsername string
@@ -49,9 +50,9 @@ type Config struct {
 // Load reads configuration from environment variables and .env file.
 func Load() *Config {
 	// Try loading .env file from multiple locations (ignore errors if not found)
-	_ = godotenv.Load()                          // current directory
-	_ = godotenv.Load("../../.env")               // monorepo root (when running from apps/server/)
-	_ = godotenv.Load("../../../.env")            // monorepo root (when running from apps/server/cmd/api/)
+	_ = godotenv.Load()                // current directory
+	_ = godotenv.Load("../../.env")    // monorepo root (when running from apps/server/)
+	_ = godotenv.Load("../../../.env") // monorepo root (when running from apps/server/cmd/api/)
 
 	cfg := &Config{
 		// App
@@ -78,6 +79,7 @@ func Load() *Config {
 		JWTRefreshTTL:      getEnvInt("JWT_REFRESH_TTL", 604800), // 7 days
 
 		// SMTP
+		MailMode:     getEnv("MAIL_MODE", "smtp"),
 		SMTPHost:     getEnv("SMTP_HOST", ""),
 		SMTPPort:     getEnvInt("SMTP_PORT", 587),
 		SMTPUsername: getEnv("SMTP_USERNAME", ""),

@@ -12,7 +12,6 @@ import (
 )
 
 // SendVerificationEmail sends an email verification link to the user.
-// In development or mock mode, it just logs the email instead of sending.
 func SendVerificationEmail(cfg *config.Config, toEmail string, rawToken string, baseURL string) error {
 	verifyURL := fmt.Sprintf("%s/verify-email?token=%s", strings.TrimRight(baseURL, "/"), rawToken)
 	subject := "Verify your email - ACM Hot 100"
@@ -30,7 +29,6 @@ func SendVerificationEmail(cfg *config.Config, toEmail string, rawToken string, 
 }
 
 // SendResetPasswordEmail sends a password reset link to the user.
-// In development or mock mode, it just logs the email instead of sending.
 func SendResetPasswordEmail(cfg *config.Config, toEmail string, rawToken string, baseURL string) error {
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", strings.TrimRight(baseURL, "/"), rawToken)
 	subject := "Reset your password - ACM Hot 100"
@@ -47,22 +45,22 @@ func SendResetPasswordEmail(cfg *config.Config, toEmail string, rawToken string,
 	return sendEmail(cfg, toEmail, subject, htmlBody)
 }
 
-// sendEmail sends an email or logs it in development/mock mode.
+// sendEmail sends through configured SMTP unless log mode is explicitly enabled.
 func sendEmail(cfg *config.Config, toEmail string, subject string, htmlBody string) error {
-	// In development or mock mode, just log the email
-	if cfg.AppEnv == "development" || cfg.JudgeMode == "mock" {
+	if cfg.MailMode == "log" {
 		log.Printf("[DEV EMAIL] To: %s, Subject: %s", toEmail, subject)
-		log.Printf("[DEV EMAIL] Body: %s", htmlBody)
 		return nil
 	}
 
 	// Validate SMTP config
 	if cfg.SMTPHost == "" || cfg.SMTPFrom == "" {
-		log.Printf("[EMAIL] SMTP not configured, skipping email to %s", toEmail)
-		return nil
+		return fmt.Errorf("SMTP_HOST and SMTP_FROM are required when MAIL_MODE=smtp")
 	}
 
-	from := mail.Address{Name: "ACM Hot 100", Address: cfg.SMTPFrom}
+	from, err := mail.ParseAddress(cfg.SMTPFrom)
+	if err != nil {
+		return fmt.Errorf("invalid SMTP_FROM: %w", err)
+	}
 	to := mail.Address{Address: toEmail}
 
 	// Build email headers
@@ -83,15 +81,17 @@ func sendEmail(cfg *config.Config, toEmail string, subject string, htmlBody stri
 
 	// Connect and send
 	addr := cfg.SMTPAddr()
-	auth := smtp.PlainAuth("", cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPHost)
+	var smtpAuth smtp.Auth
+	if cfg.SMTPUsername != "" {
+		smtpAuth = smtp.PlainAuth("", cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPHost)
+	}
 
-	var err error
 	switch cfg.SMTPTLSMode {
 	case "tls":
-		err = sendWithTLS(addr, auth, from.Address, []string{to.Address}, []byte(msg.String()), cfg.SMTPHost)
+		err = sendWithTLS(addr, smtpAuth, from.Address, []string{to.Address}, []byte(msg.String()), cfg.SMTPHost)
 	default:
 		// "none" or "starttls" - use standard smtp.SendMail which uses STARTTLS if available
-		err = smtp.SendMail(addr, auth, from.Address, []string{to.Address}, []byte(msg.String()))
+		err = smtp.SendMail(addr, smtpAuth, from.Address, []string{to.Address}, []byte(msg.String()))
 	}
 
 	if err != nil {
@@ -120,8 +120,10 @@ func sendWithTLS(addr string, auth smtp.Auth, from string, to []string, msg []by
 	}
 	defer c.Close()
 
-	if err = c.Auth(auth); err != nil {
-		return fmt.Errorf("SMTP auth failed: %w", err)
+	if auth != nil {
+		if err = c.Auth(auth); err != nil {
+			return fmt.Errorf("SMTP auth failed: %w", err)
+		}
 	}
 
 	if err = c.Mail(from); err != nil {

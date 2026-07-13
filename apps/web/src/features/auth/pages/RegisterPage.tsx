@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link } from 'react-router';
 import { useRegister } from '@/features/auth/hooks/use-auth';
-import { resendVerification } from '@/features/auth/lib/auth-api';
+import { AUTH_ERROR_CODES, resendVerification } from '@/features/auth/lib/auth-api';
 import { ApiError } from '@/lib/api-client';
 import { UserPlus, Mail, Lock, User, CheckCircle } from 'lucide-react';
 
@@ -60,9 +60,9 @@ export default function RegisterPage() {
       setResendCooldown(60);
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.code === 'EMAIL_ALREADY_EXISTS') {
+        if (err.code === AUTH_ERROR_CODES.emailAlreadyExists) {
           setError('email', { message: '该邮箱已被注册' });
-        } else if (err.code === 'USERNAME_ALREADY_EXISTS') {
+        } else if (err.code === AUTH_ERROR_CODES.usernameAlreadyExists) {
           setError('username', { message: '该用户名已被使用' });
         } else {
           setError('root.serverError', { message: err.message });
