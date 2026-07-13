@@ -17,6 +17,10 @@ export const tagKeys = {
   all: ['tags'] as const,
 };
 
+export const languageKeys = {
+  all: ['languages'] as const,
+};
+
 export const draftKeys = {
   detail: (problemSlug: string, languageKey: string) =>
     ['drafts', problemSlug, languageKey] as const,

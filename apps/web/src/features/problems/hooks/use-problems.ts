@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { problemKeys, tagKeys, draftKeys } from '@/lib/query-keys';
+import { problemKeys, tagKeys, languageKeys, draftKeys } from '@/lib/query-keys';
 import * as problemsApi from '@/features/problems/lib/problems-api';
 import type { ProblemListParams } from '@/features/problems/lib/problems-api';
 
@@ -39,6 +39,16 @@ export function useTags() {
   return useQuery({
     queryKey: tagKeys.all,
     queryFn: () => problemsApi.getTags(),
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+// --- useLanguages ---
+
+export function useLanguages() {
+  return useQuery({
+    queryKey: languageKeys.all,
+    queryFn: () => problemsApi.getLanguages(),
     staleTime: 30 * 60 * 1000,
   });
 }
