@@ -22,8 +22,8 @@ export const languageKeys = {
 };
 
 export const draftKeys = {
-  detail: (problemSlug: string, languageKey: string) =>
-    ['drafts', problemSlug, languageKey] as const,
+  detail: (userID: string, problemSlug: string, languageKey: string) =>
+    ['drafts', userID, problemSlug, languageKey] as const,
 };
 
 export const submissionKeys = {

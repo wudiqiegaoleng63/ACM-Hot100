@@ -1,17 +1,23 @@
 package http
 
 import (
+	"errors"
 	"net/http"
+	"time"
 
+	"github.com/acmhot100/server/internal/model"
 	"github.com/acmhot100/server/internal/repository"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-const maxSourceCodeSize = 64 * 1024 // 64KB
+const (
+	maxSourceCodeSize   = 64 * 1024 // 64KB
+	maxDraftRequestSize = maxSourceCodeSize*6 + 1024
+)
 
 type saveDraftRequest struct {
-	SourceCode string `json:"source_code" binding:"required"`
+	SourceCode *string `json:"source_code" binding:"required"`
 }
 
 type draftResponse struct {
@@ -32,6 +38,38 @@ func saveDraft(db *gorm.DB) gin.HandlerFunc {
 		slug := c.Param("slug")
 		languageKey := c.Param("language_key")
 
+		var req saveDraftRequest
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDraftRequestSize)
+		if err := c.ShouldBindJSON(&req); err != nil {
+			var maxBytesError *http.MaxBytesError
+			if errors.As(err, &maxBytesError) {
+				apiError(c, http.StatusRequestEntityTooLarge, "SOURCE_CODE_TOO_LARGE", "source code exceeds 64KB limit")
+				return
+			}
+			apiError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+			return
+		}
+		if req.SourceCode == nil {
+			apiError(c, http.StatusBadRequest, "BAD_REQUEST", "source_code is required")
+			return
+		}
+		if len(*req.SourceCode) > maxSourceCodeSize {
+			apiError(c, http.StatusRequestEntityTooLarge, "SOURCE_CODE_TOO_LARGE", "source code exceeds 64KB limit")
+			return
+		}
+
+		var languageCount int64
+		if err := db.Model(&model.LanguageConfig{}).
+			Where("`key` = ? AND enabled = ?", languageKey, true).
+			Count(&languageCount).Error; err != nil {
+			apiError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to validate language")
+			return
+		}
+		if languageCount == 0 {
+			apiError(c, http.StatusBadRequest, "INVALID_LANGUAGE", "language is not enabled")
+			return
+		}
+
 		// Resolve problem slug to ID
 		problem, err := repository.GetProblemBySlug(db, slug)
 		if err != nil {
@@ -43,24 +81,17 @@ func saveDraft(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var req saveDraftRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			apiError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
-			return
-		}
-
-		// Validate source code size
-		if len(req.SourceCode) > maxSourceCodeSize {
-			apiError(c, http.StatusBadRequest, "BAD_REQUEST", "source code exceeds 64KB limit")
-			return
-		}
-
-		if err := repository.UpsertDraft(db, userID, problem.ID, languageKey, req.SourceCode); err != nil {
+		if err := repository.UpsertDraft(db, userID, problem.ID, languageKey, *req.SourceCode); err != nil {
 			apiError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to save draft")
 			return
 		}
+		draft, err := repository.GetDraft(db, userID, problem.ID, languageKey)
+		if err != nil || draft == nil {
+			apiError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to read saved draft")
+			return
+		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "draft saved"})
+		c.JSON(http.StatusOK, newDraftResponse(draft))
 	}
 }
 
@@ -97,10 +128,14 @@ func getDraft(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, draftResponse{
-			SourceCode:  draft.SourceCode,
-			LanguageKey: draft.LanguageKey,
-			UpdatedAt:   draft.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		})
+		c.JSON(http.StatusOK, newDraftResponse(draft))
+	}
+}
+
+func newDraftResponse(draft *model.Draft) draftResponse {
+	return draftResponse{
+		SourceCode:  draft.SourceCode,
+		LanguageKey: draft.LanguageKey,
+		UpdatedAt:   draft.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
 }

@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  getDraft,
   getLanguages,
   getProblem,
   getProblems,
+  saveDraft,
 } from './problems-api';
 
 describe('problems API contract', () => {
@@ -87,6 +89,33 @@ describe('problems API contract', () => {
     );
 
     await expect(getProblems()).rejects.toThrow();
+  });
+
+  it('parses draft source, language, and update timestamp', async () => {
+    const payload = {
+      source_code: 'int main() {}',
+      language_key: 'cpp17',
+      updated_at: '2026-07-13T14:30:00.123456Z',
+    };
+    vi.stubGlobal('fetch', jsonFetch(payload));
+
+    await expect(getDraft('two-sum-target', 'cpp17')).resolves.toEqual(payload);
+  });
+
+  it('sends draft source and parses the saved draft response', async () => {
+    const payload = {
+      source_code: 'print(1)',
+      language_key: 'python3',
+      updated_at: '2026-07-13T14:31:00Z',
+    };
+    const fetchMock = jsonFetch(payload);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(saveDraft('two-sum-target', 'python3', 'print(1)')).resolves.toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/problems/two-sum-target/drafts/python3',
+      expect.objectContaining({ body: JSON.stringify({ source_code: 'print(1)' }) }),
+    );
   });
 
   it('parses only the public language configuration fields', async () => {

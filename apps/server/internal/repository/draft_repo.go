@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/acmhot100/server/internal/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -26,6 +28,7 @@ func UpsertDraft(db *gorm.DB, userID, problemID, languageKey, sourceCode string)
 		ProblemID:   problemID,
 		LanguageKey: languageKey,
 		SourceCode:  sourceCode,
+		UpdatedAt:   time.Now().UTC(),
 	}
 
 	return db.Clauses(clause.OnConflict{
@@ -34,6 +37,6 @@ func UpsertDraft(db *gorm.DB, userID, problemID, languageKey, sourceCode string)
 			{Name: "problem_id"},
 			{Name: "language_key"},
 		},
-		DoUpdates: clause.AssignmentColumns([]string{"source_code"}),
+		DoUpdates: clause.AssignmentColumns([]string{"source_code", "updated_at"}),
 	}).Create(&draft).Error
 }

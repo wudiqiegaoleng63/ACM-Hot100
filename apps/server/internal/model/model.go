@@ -153,7 +153,7 @@ type Draft struct {
 	UserID      string    `gorm:"type:char(36);primaryKey;not null" json:"user_id"`
 	ProblemID   string    `gorm:"type:char(36);primaryKey;not null" json:"problem_id"`
 	LanguageKey string    `gorm:"type:varchar(20);primaryKey;not null;column:language_key" json:"language_key"`
-	SourceCode  string    `gorm:"type:text;not null;column:source_code" json:"source_code"`
+	SourceCode  string    `gorm:"type:mediumtext;not null;column:source_code" json:"source_code"`
 	UpdatedAt   time.Time `gorm:"type:datetime(6);autoUpdateTime" json:"updated_at"`
 }
 

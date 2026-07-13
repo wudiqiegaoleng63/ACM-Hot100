@@ -53,28 +53,30 @@ export function useLanguages() {
   });
 }
 
-// --- useSaveDraft (mutation, debounce handled at call site) ---
+// --- useSaveDraft (debounce handled at call site) ---
 
 export function useSaveDraft() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ slug, languageKey, sourceCode }: { slug: string; languageKey: string; sourceCode: string }) =>
+    mutationFn: ({ slug, languageKey, sourceCode }: { userID: string; slug: string; languageKey: string; sourceCode: string }) =>
       problemsApi.saveDraft(slug, languageKey, sourceCode),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: draftKeys.detail(variables.slug, variables.languageKey),
-      });
+    onSuccess: (draft, variables) => {
+      queryClient.setQueryData(
+        draftKeys.detail(variables.userID, variables.slug, variables.languageKey),
+        draft,
+      );
     },
   });
 }
 
 // --- useDraft ---
 
-export function useDraft(slug: string, languageKey: string) {
+export function useDraft(userID: string | undefined, slug: string, languageKey: string) {
   return useQuery({
-    queryKey: draftKeys.detail(slug, languageKey),
+    queryKey: draftKeys.detail(userID ?? 'guest', slug, languageKey),
     queryFn: () => problemsApi.getDraft(slug, languageKey),
-    enabled: !!slug && !!languageKey,
+    enabled: Boolean(userID && slug && languageKey),
+    retry: false,
   });
 }

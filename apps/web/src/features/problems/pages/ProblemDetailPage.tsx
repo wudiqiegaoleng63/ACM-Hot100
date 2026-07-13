@@ -42,7 +42,7 @@ export default function ProblemDetailPage() {
   return (
     <ProblemWorkspace
       statement={<ProblemStatement data={problem.data} />}
-      editor={<LanguageEditor />}
+      editor={<LanguageEditor problemSlug={slug} userID={user?.id} />}
       previous={navigation.data?.prev ?? null}
       next={navigation.data?.next ?? null}
       isAuthenticated={Boolean(user)}

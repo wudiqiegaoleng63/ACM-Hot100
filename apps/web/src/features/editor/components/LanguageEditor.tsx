@@ -1,26 +1,131 @@
 import { AlertTriangle } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import CodeEditor from '@/features/editor/components/CodeEditor';
-import { useLanguages } from '@/features/problems/hooks/use-problems';
-import type { Language } from '@/features/problems/lib/problems-api';
+import { useDraft, useLanguages, useSaveDraft } from '@/features/problems/hooks/use-problems';
+import type { DraftData, Language } from '@/features/problems/lib/problems-api';
+import { ApiError } from '@/lib/api-client';
 
-export default function LanguageEditor() {
+const MAX_SOURCE_BYTES = 64 * 1024;
+const SAVE_DELAY_MS = 500;
+
+interface LocalDraft {
+  source_code: string;
+  updated_at: string;
+}
+
+interface PendingSave {
+  timer: ReturnType<typeof setTimeout>;
+  userID: string;
+  slug: string;
+  languageKey: string;
+  sourceCode: string;
+}
+
+export default function LanguageEditor({
+  problemSlug,
+  userID,
+}: {
+  problemSlug: string;
+  userID?: string;
+}) {
   const languagesQuery = useLanguages();
-  const initialized = useRef(false);
+  const saveDraft = useSaveDraft();
+  const saveDraftRef = useRef(saveDraft.mutateAsync);
+  const pendingSave = useRef<PendingSave | null>(null);
   const [languageKey, setLanguageKey] = useState('');
   const [sourceCode, setSourceCode] = useState('');
   const [template, setTemplate] = useState('');
+  const [restoredContext, setRestoredContext] = useState('');
+  const [warning, setWarning] = useState('');
+  const [sizeError, setSizeError] = useState('');
+  const draftQuery = useDraft(userID, problemSlug, languageKey);
+  const owner = userID ?? 'guest';
+  const currentContext = draftContext(owner, problemSlug, languageKey);
+
+  saveDraftRef.current = saveDraft.mutateAsync;
+
+  const flushPendingSave = useCallback(() => {
+    const pending = pendingSave.current;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingSave.current = null;
+    void saveDraftRef.current(pending).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const firstLanguage = languagesQuery.data?.[0];
-    if (!firstLanguage || initialized.current) return;
-
-    initialized.current = true;
+    if (!firstLanguage || languageKey) return;
     setLanguageKey(firstLanguage.key);
-    setSourceCode(firstLanguage.source_template);
-    setTemplate(firstLanguage.source_template);
-  }, [languagesQuery.data]);
+  }, [languageKey, languagesQuery.data]);
+
+  useEffect(() => {
+    if (!languageKey) return;
+    if (userID && draftQuery.status === 'pending') return;
+    if (restoredContext === currentContext) return;
+
+    const language = findLanguage(languagesQuery.data ?? [], languageKey);
+    if (!language) return;
+
+    const localDraft = readLocalDraft(localDraftKey(owner, problemSlug, languageKey));
+    const serverDraft = draftQuery.status === 'success' ? draftQuery.data : undefined;
+    const restored = newerDraft(localDraft, serverDraft) ?? {
+      source_code: language.source_template,
+      updated_at: '',
+    };
+
+    setTemplate(language.source_template);
+    setSourceCode(restored.source_code);
+    setRestoredContext(currentContext);
+    setSizeError('');
+
+    if (serverDraft && restored === serverDraft) {
+      writeLocalDraft(localDraftKey(owner, problemSlug, languageKey), serverDraft);
+    }
+    if (userID && localDraft && restored === localDraft && newerThan(localDraft, serverDraft)) {
+      scheduleServerSave(userID, problemSlug, languageKey, localDraft.source_code);
+    }
+    if (userID && draftQuery.status === 'error' && !isMissingDraft(draftQuery.error)) {
+      setWarning('服务器草稿加载失败，已使用本地草稿。');
+    }
+  }, [
+    currentContext,
+    draftQuery.data,
+    draftQuery.error,
+    draftQuery.status,
+    languageKey,
+    languagesQuery.data,
+    owner,
+    problemSlug,
+    restoredContext,
+    userID,
+  ]);
+
+  useEffect(() => flushPendingSave, [flushPendingSave, problemSlug, userID]);
+
+  const scheduleServerSave = (
+    saveUserID: string,
+    slug: string,
+    saveLanguageKey: string,
+    nextSourceCode: string,
+  ) => {
+    if (pendingSave.current) clearTimeout(pendingSave.current.timer);
+    const payload = {
+      userID: saveUserID,
+      slug,
+      languageKey: saveLanguageKey,
+      sourceCode: nextSourceCode,
+    };
+    const timer = setTimeout(() => {
+      pendingSave.current = null;
+      void saveDraftRef.current(payload).catch(() => {
+        if (draftContext(saveUserID, slug, saveLanguageKey) === currentContext) {
+          setWarning('服务器草稿保存失败，本地草稿已保留。');
+        }
+      });
+    }, SAVE_DELAY_MS);
+    pendingSave.current = { timer, ...payload };
+  };
 
   if (languagesQuery.status === 'pending') {
     return <EditorMessage>正在加载语言配置…</EditorMessage>;
@@ -44,22 +149,48 @@ export default function LanguageEditor() {
   if (!firstLanguage) return null;
   const selectedLanguage = findLanguage(languagesQuery.data, languageKey) ?? firstLanguage;
 
+  if (!languageKey || restoredContext !== currentContext) {
+    return <EditorMessage>正在恢复草稿…</EditorMessage>;
+  }
+
   const handleLanguageChange = (nextKey: string) => {
     if (nextKey === selectedLanguage.key) return;
     const nextLanguage = findLanguage(languagesQuery.data, nextKey);
     if (!nextLanguage) return;
 
-    const hasModifiedSource = sourceCode !== template;
-    if (hasModifiedSource && !window.confirm('切换语言会替换当前代码，是否继续？')) return;
+    if (sourceCode !== template && !window.confirm('切换语言会替换当前代码，是否继续？')) return;
 
+    flushPendingSave();
     setLanguageKey(nextLanguage.key);
-    setSourceCode(nextLanguage.source_template);
     setTemplate(nextLanguage.source_template);
+    setSourceCode(nextLanguage.source_template);
+    setRestoredContext('');
+    setWarning('');
+    setSizeError('');
+  };
+
+  const handleSourceChange = (nextSourceCode: string) => {
+    if (new TextEncoder().encode(nextSourceCode).byteLength > MAX_SOURCE_BYTES) {
+      setSizeError('代码不能超过 64KB。');
+      return;
+    }
+
+    const localDraft: LocalDraft = {
+      source_code: nextSourceCode,
+      updated_at: new Date().toISOString(),
+    };
+    setSourceCode(nextSourceCode);
+    setSizeError('');
+    setWarning('');
+    if (!writeLocalDraft(localDraftKey(owner, problemSlug, selectedLanguage.key), localDraft)) {
+      setWarning('本地草稿保存失败，请复制代码后刷新页面。');
+    }
+    if (userID) scheduleServerSave(userID, problemSlug, selectedLanguage.key, nextSourceCode);
   };
 
   return (
     <section className="flex min-h-[420px] flex-col border border-[var(--editor-border)] bg-[var(--editor-bg)]">
-      <div className="flex items-center justify-between border-b border-[var(--editor-border)] bg-[var(--editor-panel)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--editor-border)] bg-[var(--editor-panel)] px-4 py-3">
         <label className="flex items-center gap-3 text-sm text-neutral-300">
           <span>编程语言</span>
           <select
@@ -73,13 +204,17 @@ export default function LanguageEditor() {
             ))}
           </select>
         </label>
-        {sourceCode !== template && <span className="text-xs text-[var(--warning)]">代码已修改</span>}
+        <div className="text-right text-xs">
+          {sizeError && <p className="text-[var(--danger)]">{sizeError}</p>}
+          {warning && <p className="text-[var(--warning)]">{warning}</p>}
+          {!sizeError && !warning && sourceCode !== template && <p className="text-[var(--warning)]">代码已修改</p>}
+        </div>
       </div>
       <div className="min-h-0 flex-1">
         <CodeEditor
           value={sourceCode}
           language={selectedLanguage.editor_language}
-          onChange={setSourceCode}
+          onChange={handleSourceChange}
           readOnly={false}
         />
       </div>
@@ -89,6 +224,60 @@ export default function LanguageEditor() {
 
 function findLanguage(languages: Language[], key: string) {
   return languages.find((language) => language.key === key);
+}
+
+function localDraftKey(owner: string, problemSlug: string, languageKey: string) {
+  return `draft:${owner}:${problemSlug}:${languageKey}`;
+}
+
+function draftContext(owner: string, problemSlug: string, languageKey: string) {
+  return `${owner}:${problemSlug}:${languageKey}`;
+}
+
+function readLocalDraft(key: string): LocalDraft | undefined {
+  try {
+    const stored = localStorage.getItem(key);
+    if (!stored) return undefined;
+    const draft: unknown = JSON.parse(stored);
+    if (!isLocalDraft(draft)) {
+      localStorage.removeItem(key);
+      return undefined;
+    }
+    return draft;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeLocalDraft(key: string, draft: LocalDraft): boolean {
+  try {
+    localStorage.setItem(key, JSON.stringify(draft));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isLocalDraft(value: unknown): value is LocalDraft {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.source_code === 'string'
+    && typeof candidate.updated_at === 'string'
+    && Number.isFinite(Date.parse(candidate.updated_at));
+}
+
+function newerDraft(localDraft?: LocalDraft, serverDraft?: DraftData): LocalDraft | DraftData | undefined {
+  if (!localDraft) return serverDraft;
+  if (!serverDraft) return localDraft;
+  return newerThan(localDraft, serverDraft) ? localDraft : serverDraft;
+}
+
+function newerThan(left: LocalDraft, right?: DraftData) {
+  return !right || Date.parse(left.updated_at) > Date.parse(right.updated_at);
+}
+
+function isMissingDraft(error: unknown) {
+  return error instanceof ApiError && error.code === 'NOT_FOUND';
 }
 
 function EditorMessage({ title, children }: { title?: string; children: React.ReactNode }) {

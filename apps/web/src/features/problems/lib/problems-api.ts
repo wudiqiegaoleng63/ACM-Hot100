@@ -73,6 +73,11 @@ const languageSchema = z.object({
 
 const languagesSchema = z.array(languageSchema);
 const tagsSchema = z.array(tagSchema);
+const draftSchema = z.object({
+  source_code: z.string(),
+  language_key: z.string(),
+  updated_at: z.string().datetime({ offset: true }),
+});
 
 export type Difficulty = z.infer<typeof difficultySchema>;
 export type ProgressState = z.infer<typeof progressStateSchema>;
@@ -93,9 +98,7 @@ export interface ProblemListParams {
   page_size?: number;
 }
 
-export interface DraftData {
-  source_code: string;
-}
+export type DraftData = z.infer<typeof draftSchema>;
 
 export async function getProblems(params?: ProblemListParams): Promise<ProblemListResponse> {
   const response = await api.get<unknown>(
@@ -123,10 +126,12 @@ export async function getLanguages(): Promise<Language[]> {
   return languagesSchema.parse(await api.get<unknown>('/languages'));
 }
 
-export function saveDraft(slug: string, languageKey: string, sourceCode: string): Promise<void> {
-  return api.put(`/problems/${slug}/drafts/${languageKey}`, { source_code: sourceCode });
+export async function saveDraft(slug: string, languageKey: string, sourceCode: string): Promise<DraftData> {
+  return draftSchema.parse(
+    await api.put<unknown>(`/problems/${slug}/drafts/${languageKey}`, { source_code: sourceCode }),
+  );
 }
 
-export function getDraft(slug: string, languageKey: string): Promise<DraftData> {
-  return api.get(`/problems/${slug}/drafts/${languageKey}`);
+export async function getDraft(slug: string, languageKey: string): Promise<DraftData> {
+  return draftSchema.parse(await api.get<unknown>(`/problems/${slug}/drafts/${languageKey}`));
 }
