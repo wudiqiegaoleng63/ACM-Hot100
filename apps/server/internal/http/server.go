@@ -53,6 +53,7 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 			problems.GET("", listProblems(db))
 			problems.GET("/:slug", getProblem(db))
 			problems.GET("/:slug/navigation", getProblemNavigation(db))
+			problems.POST("/:slug/run", RequireAuth(cfg, rdb), createSampleRun(db, rdb))
 
 			// Draft routes (require auth)
 			drafts := problems.Group("/:slug/drafts")
@@ -62,6 +63,9 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 				drafts.GET("/:language_key", getDraft(db))
 			}
 		}
+
+		// Sample run routes
+		v1.GET("/runs/:id", RequireAuth(cfg, rdb), getSampleRun(db))
 
 		// Public content metadata
 		v1.GET("/tags", listTags(db))

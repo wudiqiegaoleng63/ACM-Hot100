@@ -9,7 +9,7 @@ dev-api:
 	cd apps/server && go run cmd/api/main.go
 
 dev-worker:
-	cd apps/server && go run cmd/worker/main.go
+	cd apps/server && go run cmd/judge-worker/main.go
 
 # ---- Docker Infrastructure ----
 

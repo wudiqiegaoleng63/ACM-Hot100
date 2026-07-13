@@ -21,6 +21,15 @@ const (
 	SubmissionStatusSystemError  = "SYSTEM_ERROR"
 )
 
+// ─── Sample run status constants ───────────────────────────────────────────
+
+const (
+	SampleRunStatusQueued      = "QUEUED"
+	SampleRunStatusRunning     = "RUNNING"
+	SampleRunStatusAccepted    = "AC"
+	SampleRunStatusSystemError = "SYSTEM_ERROR"
+)
+
 // ─── Difficulty constants ──────────────────────────────────────────────────
 
 const (
@@ -158,6 +167,31 @@ type Draft struct {
 }
 
 func (Draft) TableName() string { return "drafts" }
+
+// ─── Sample Run ─────────────────────────────────────────────────────────────
+
+// SampleRun stores an immutable source/input snapshot for an asynchronous sample execution.
+type SampleRun struct {
+	ID              string     `gorm:"type:char(36);primaryKey" json:"id"`
+	UserID          string     `gorm:"type:char(36);not null;index" json:"user_id"`
+	ProblemID       string     `gorm:"type:char(36);not null;index" json:"problem_id"`
+	LanguageKey     string     `gorm:"type:varchar(20);not null;column:language_key" json:"language_key"`
+	SampleCaseID    *string    `gorm:"type:char(36);column:sample_case_id" json:"sample_case_id"`
+	SourceCode      string     `gorm:"type:mediumtext;not null;column:source_code" json:"-"`
+	InputData       string     `gorm:"type:text;not null;column:input_data" json:"input_data"`
+	Status          string     `gorm:"type:varchar(20);not null;default:'QUEUED';index" json:"status"`
+	OutputData      string     `gorm:"type:mediumtext;column:output_data" json:"output_data"`
+	ErrorMessage    string     `gorm:"type:text;column:error_message" json:"error_message"`
+	StreamMessageID string     `gorm:"type:varchar(64);column:stream_message_id" json:"-"`
+	EnqueuedAt      *time.Time `gorm:"type:datetime(6);column:enqueued_at" json:"-"`
+	CreatedAt       time.Time  `gorm:"type:datetime(6);autoCreateTime" json:"created_at"`
+	UpdatedAt       time.Time  `gorm:"type:datetime(6);autoUpdateTime" json:"updated_at"`
+	StartedAt       *time.Time `gorm:"type:datetime(6);column:started_at" json:"started_at"`
+	FinishedAt      *time.Time `gorm:"type:datetime(6);column:finished_at" json:"finished_at"`
+	ExpiresAt       time.Time  `gorm:"type:datetime(6);not null;index" json:"expires_at"`
+}
+
+func (SampleRun) TableName() string { return "sample_runs" }
 
 // ─── Submission ────────────────────────────────────────────────────────────
 

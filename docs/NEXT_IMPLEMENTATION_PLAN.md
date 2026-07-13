@@ -292,7 +292,7 @@ go vet ./...
 
 建议提交信息：`feat: 实现本地和服务端草稿恢复`
 
-### [ ] P2-05 · 建立 Sample Run 数据与 Mock Worker
+### [x] P2-05 · 建立 Sample Run 数据与 Mock Worker
 
 目标：样例运行也使用异步任务，不在 Gin Handler 中 `sleep` 或执行代码。
 

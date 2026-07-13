@@ -13,3 +13,15 @@ func ListEnabledLanguages(db *gorm.DB) ([]model.LanguageConfig, error) {
 	}
 	return languages, nil
 }
+
+// GetEnabledLanguageByKey returns an enabled language, or nil when unavailable.
+func GetEnabledLanguageByKey(db *gorm.DB, key string) (*model.LanguageConfig, error) {
+	var language model.LanguageConfig
+	if err := db.Where("`key` = ? AND enabled = ?", key, true).First(&language).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &language, nil
+}

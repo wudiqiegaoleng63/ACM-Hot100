@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/acmhot100/server/internal/config"
+	"github.com/acmhot100/server/internal/judge"
 	"github.com/acmhot100/server/internal/queue"
 	"github.com/redis/go-redis/v9"
 
@@ -58,25 +60,24 @@ func main() {
 	// Set Redis key prefix for queue helpers
 	queue.SetPrefix(cfg.RedisKeyPrefix)
 
-	log.Printf("Judge worker started (mode: %s)", cfg.JudgeMode)
-
-	// Wait for shutdown signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	// Placeholder: main worker loop
-	// In production, this would consume from the Redis stream and process submissions
-	for {
-		select {
-		case <-quit:
-			log.Println("Judge worker shutting down...")
-			return
-		default:
-			// TODO: Poll Redis stream for new submissions
-			// For now, just wait for shutdown signal
-			<-quit
-			log.Println("Judge worker shutting down...")
-			return
-		}
+	if cfg.JudgeMode != "mock" {
+		log.Fatalf("Unsupported JUDGE_MODE %q: sample run worker currently requires mock", cfg.JudgeMode)
 	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("Failed to resolve worker hostname: %v", err)
+	}
+	consumerName := fmt.Sprintf("sample-run-%s-%d", hostname, os.Getpid())
+	worker := judge.NewSampleRunWorker(db, rdb, consumerName)
+	if err := worker.EnsureGroup(ctx); err != nil {
+		log.Fatalf("Failed to initialize sample run consumer group: %v", err)
+	}
+
+	workerCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	log.Printf("Judge worker started (mode: %s, consumer: %s)", cfg.JudgeMode, consumerName)
+	if err := worker.Run(workerCtx); err != nil {
+		log.Fatalf("Judge worker failed: %v", err)
+	}
+	log.Println("Judge worker shut down")
 }

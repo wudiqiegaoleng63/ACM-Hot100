@@ -43,7 +43,7 @@ type Config struct {
 	SMTPTLSMode  string // "none", "starttls", "tls"
 
 	// Judge
-	JudgeMode     string // "local" or "remote"
+	JudgeMode     string // "mock" or "judge0"
 	Judge0BaseURL string
 }
 
@@ -88,7 +88,7 @@ func Load() *Config {
 		SMTPTLSMode:  getEnv("SMTP_TLS_MODE", "starttls"),
 
 		// Judge
-		JudgeMode:     getEnv("JUDGE_MODE", "remote"),
+		JudgeMode:     getEnv("JUDGE_MODE", "mock"),
 		Judge0BaseURL: getEnv("JUDGE0_BASE_URL", "http://127.0.0.1:2358"),
 	}
 

@@ -72,8 +72,11 @@ func KeyRate(identifier string) string {
 // ─── Judge queue keys ───────────────────────────────────────────────────────
 
 const (
-	// StreamName is the Redis stream name for judge submissions.
-	StreamName = "judge:submissions"
+	// SubmissionStreamName is the Redis stream name for judge submissions.
+	SubmissionStreamName = "judge:submissions"
+
+	// RunStreamName is the Redis stream name for sample runs.
+	RunStreamName = "judge:runs"
 
 	// ConsumerGroup is the Redis consumer group name for judge workers.
 	ConsumerGroup = "judge-workers"
@@ -81,37 +84,16 @@ const (
 
 // KeyJudgeSubmissions returns the key for the judge submissions stream.
 func KeyJudgeSubmissions() string {
-	return K(StreamName)
+	return K(SubmissionStreamName)
+}
+
+// KeyJudgeRuns returns the key for the sample-run stream.
+func KeyJudgeRuns() string {
+	return K(RunStreamName)
 }
 
 // KeyJudgeLock returns the key for judge submission locks.
 // Usage: KeyJudgeLock(submissionID) -> "{prefix}judge:lock:{submissionID}"
 func KeyJudgeLock(submissionID string) string {
 	return K(fmt.Sprintf("judge:lock:%s", submissionID))
-}
-
-// ─── Queue operations ───────────────────────────────────────────────────────
-
-// RedisClient is an interface abstracting the Redis operations needed by the queue.
-type RedisClient interface {
-	XAdd(stream string, values map[string]interface{}) error
-	XReadGroup(group string, consumer string, count int64, blockMs int64) ([]StreamMessage, error)
-}
-
-// StreamMessage represents a message read from a Redis stream.
-type StreamMessage struct {
-	ID     string
-	Fields map[string]interface{}
-}
-
-// EnqueueSubmission adds a submission event to the judge queue stream.
-// This is a placeholder implementation.
-func EnqueueSubmission(rdb RedisClient, submissionID string, payload map[string]interface{}) error {
-	return rdb.XAdd(StreamName, payload)
-}
-
-// ReadSubmissions reads submission events from the judge queue stream
-// using a consumer group. This is a placeholder implementation.
-func ReadSubmissions(rdb RedisClient, consumerGroup string, consumerName string, count int64, blockMs int64) ([]StreamMessage, error) {
-	return rdb.XReadGroup(consumerGroup, consumerName, count, blockMs)
 }
