@@ -1,0 +1,12 @@
+slug: max-subarray-sum
+order_index: 4
+title: 最大连续子段和
+difficulty: MEDIUM
+stage: 动态规划
+time_limit_ms: 1000
+memory_limit_kb: 262144
+tags:
+  - slug: dynamic-programming
+    name: 动态规划
+  - slug: array
+    name: 数组

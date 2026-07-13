@@ -30,13 +30,40 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	// API v1 route group
 	v1 := r.Group("/api/v1")
 	{
-		// Auth routes (placeholder)
-		auth := v1.Group("/auth")
-		_ = auth
+		// Auth routes
+		authHandler := NewAuthHandler(db, rdb, cfg)
+		authGroup := v1.Group("/auth")
+		{
+			authGroup.POST("/register", authHandler.Register)
+			authGroup.POST("/verify-email", authHandler.VerifyEmail)
+			authGroup.POST("/resend-verification", authHandler.ResendVerification)
+			authGroup.POST("/login", authHandler.Login)
+			authGroup.POST("/refresh", authHandler.RefreshToken)
+			authGroup.POST("/logout", authHandler.Logout)
+			authGroup.POST("/logout-all", RequireAuth(cfg, rdb), authHandler.LogoutAll)
+			authGroup.POST("/forgot-password", authHandler.ForgotPassword)
+			authGroup.POST("/reset-password", authHandler.ResetPassword)
+			authGroup.GET("/me", RequireAuth(cfg, rdb), authHandler.GetCurrentUser)
+		}
 
-		// Problems routes (placeholder)
+		// Problems routes
 		problems := v1.Group("/problems")
-		_ = problems
+		{
+			problems.GET("", listProblems(db))
+			problems.GET("/:slug", getProblem(db))
+			problems.GET("/:slug/navigation", getProblemNavigation(db))
+
+			// Draft routes (require auth)
+			drafts := problems.Group("/:slug/drafts")
+			drafts.Use(RequireAuth(cfg, rdb))
+			{
+				drafts.PUT("/:language_key", saveDraft(db))
+				drafts.GET("/:language_key", getDraft(db))
+			}
+		}
+
+		// Tags
+		v1.GET("/tags", listTags(db))
 
 		// Submissions routes (placeholder)
 		submissions := v1.Group("/submissions")

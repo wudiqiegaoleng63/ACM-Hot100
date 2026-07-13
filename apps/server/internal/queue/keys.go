@@ -55,6 +55,12 @@ func KeyAuthDeny(tokenID string) string {
 	return K(fmt.Sprintf("auth:deny:%s", tokenID))
 }
 
+// KeyAuthUserFamilies returns the key tracking all token families for a user.
+// Usage: KeyAuthUserFamilies(userID) -> "{prefix}auth:user_families:{userID}"
+func KeyAuthUserFamilies(userID string) string {
+	return K(fmt.Sprintf("auth:user_families:%s", userID))
+}
+
 // ─── Rate limiting keys ─────────────────────────────────────────────────────
 
 // KeyRate returns the key for rate limiting.

@@ -122,8 +122,8 @@ type TestCase struct {
 	ID             string    `gorm:"type:char(36);primaryKey" json:"id"`
 	ProblemID      string    `gorm:"type:char(36);not null;uniqueIndex:idx_problem_order" json:"problem_id"`
 	OrderIndex     int       `gorm:"not null;uniqueIndex:idx_problem_order" json:"order_index"`
-	InputData      string    `gorm:"type:text;not null;column:input_data" json:"input_data"`
-	ExpectedOutput string    `gorm:"type:text;not null;column:expected_output" json:"expected_output"`
+	InputData      string    `gorm:"type:mediumtext;not null;column:input_data" json:"input_data"`
+	ExpectedOutput string    `gorm:"type:mediumtext;not null;column:expected_output" json:"expected_output"`
 	IsSample       bool      `gorm:"not null;default:false" json:"is_sample"`
 	ExplanationMD  string    `gorm:"type:text;column:explanation_md" json:"explanation_md"`
 	CreatedAt      time.Time `gorm:"type:datetime(6);autoCreateTime" json:"created_at"`

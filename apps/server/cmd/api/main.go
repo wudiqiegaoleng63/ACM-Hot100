@@ -15,6 +15,7 @@ import (
 	"github.com/acmhot100/server/internal/config"
 	serverHTTP "github.com/acmhot100/server/internal/http"
 	"github.com/acmhot100/server/internal/queue"
+	"github.com/acmhot100/server/internal/service"
 	"github.com/redis/go-redis/v9"
 
 	"gorm.io/driver/mysql"
@@ -97,9 +98,11 @@ func main() {
 	}
 
 	if *seedFlag {
-		log.Println("Seeding database...")
-		// TODO: Implement seed logic
-		log.Println("Seed completed (placeholder)")
+		seedDir := getSeedDir()
+		log.Printf("Seeding database from %s", seedDir)
+		if err := service.SeedAll(db, seedDir); err != nil {
+			log.Fatalf("Seed failed: %v", err)
+		}
 		return
 	}
 
@@ -170,5 +173,28 @@ func getMigrationsDir() string {
 	// Default fallback
 	fmt.Println("Warning: migrations directory not found, using default path")
 	abs, _ := filepath.Abs("migrations")
+	return abs
+}
+
+// getSeedDir resolves the absolute path to the seed problems directory.
+func getSeedDir() string {
+	// Try relative to project root (apps/server -> ../../seed/problems)
+	candidate := filepath.Join("..", "..", "seed", "problems")
+	if abs, err := filepath.Abs(candidate); err == nil {
+		if _, err := os.Stat(abs); err == nil {
+			return abs
+		}
+	}
+
+	// Try relative to working directory
+	candidate = filepath.Join("seed", "problems")
+	if abs, err := filepath.Abs(candidate); err == nil {
+		if _, err := os.Stat(abs); err == nil {
+			return abs
+		}
+	}
+
+	// Default fallback
+	abs, _ := filepath.Abs(filepath.Join("..", "..", "seed", "problems"))
 	return abs
 }
