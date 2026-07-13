@@ -1,10 +1,11 @@
 import { Flame, ListChecks, LogIn, LogOut, Send, User } from 'lucide-react';
-import { Link, NavLink, Outlet } from 'react-router';
+import { Link, NavLink, Outlet, useMatch } from 'react-router';
 
 import { useAuth } from '@/features/auth/contexts/auth-context';
 
 export default function RootLayout() {
   const { user, isLoading, logout } = useAuth();
+  const isProblemWorkspace = Boolean(useMatch('/problems/:slug'));
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -34,10 +35,12 @@ export default function RootLayout() {
           </nav>
         </div>
       </header>
-      <main className="w-full flex-1 px-4 py-6 lg:py-8"><Outlet /></main>
-      <footer className="border-t border-[var(--border)] px-4 py-5 text-center text-xs text-[var(--text-muted)]">
-        独立学习项目，非 LeetCode 官方产品
-      </footer>
+      <main className={`w-full flex-1 ${isProblemWorkspace ? 'px-0 py-0' : 'px-4 py-6 lg:py-8'}`}><Outlet /></main>
+      {!isProblemWorkspace && (
+        <footer className="border-t border-[var(--border)] px-4 py-5 text-center text-xs text-[var(--text-muted)]">
+          独立学习项目，非 LeetCode 官方产品
+        </footer>
+      )}
     </div>
   );
 }

@@ -1,14 +1,17 @@
 import 'katex/dist/katex.min.css';
 
-import { ArrowLeft, ArrowRight, Clock3, Database } from 'lucide-react';
+import { Clock3, Database } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
+import LanguageEditor from '@/features/editor/components/LanguageEditor';
+import { useAuth } from '@/features/auth/contexts/auth-context';
+import ProblemWorkspace from '@/features/problems/components/ProblemWorkspace';
 import { useProblem, useProblemNavigation } from '@/features/problems/hooks/use-problems';
-import type { Difficulty } from '@/features/problems/lib/problems-api';
+import type { Difficulty, ProblemDetail } from '@/features/problems/lib/problems-api';
 
 const difficultyLabels: Record<Difficulty, string> = {
   EASY: '简单',
@@ -18,6 +21,7 @@ const difficultyLabels: Record<Difficulty, string> = {
 
 export default function ProblemDetailPage() {
   const { slug = '' } = useParams<{ slug: string }>();
+  const { user } = useAuth();
   const problem = useProblem(slug);
   const navigation = useProblemNavigation(slug);
 
@@ -35,11 +39,21 @@ export default function ProblemDetailPage() {
     );
   }
 
-  const data = problem.data;
-  const memoryMb = Math.round(data.memory_limit_kb / 1024);
-
   return (
-    <article className="mx-auto max-w-[980px] bg-[var(--surface)] px-5 py-6 sm:px-8 lg:px-12 lg:py-10">
+    <ProblemWorkspace
+      statement={<ProblemStatement data={problem.data} />}
+      editor={<LanguageEditor />}
+      previous={navigation.data?.prev ?? null}
+      next={navigation.data?.next ?? null}
+      isAuthenticated={Boolean(user)}
+    />
+  );
+}
+
+function ProblemStatement({ data }: { data: ProblemDetail }) {
+  const memoryMb = Math.round(data.memory_limit_kb / 1024);
+  return (
+    <article className="mx-auto max-w-[980px] bg-[var(--surface)] px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
       <header className="border-b border-[var(--border)] pb-6">
         <p className="eyebrow">第 {data.order_index} 题 · {data.stage}</p>
         <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -92,34 +106,13 @@ export default function ProblemDetailPage() {
           <MarkdownSection title="提示" content={data.hints_md} />
         </section>
       )}
-
-      <nav className="mt-12 flex items-center justify-between border-t border-[var(--border)] pt-6" aria-label="题目导航">
-        {navigation.data?.prev ? (
-          <Link className="secondary-button inline-flex items-center gap-2 no-underline" to={`/problems/${navigation.data.prev.slug}`}>
-            <ArrowLeft aria-hidden="true" size={16} />
-            <span className="hidden sm:inline">{navigation.data.prev.title}</span>
-            <span className="sm:hidden">上一题</span>
-          </Link>
-        ) : <span />}
-        {navigation.data?.next ? (
-          <Link className="secondary-button inline-flex items-center gap-2 no-underline" to={`/problems/${navigation.data.next.slug}`}>
-            <span className="hidden sm:inline">{navigation.data.next.title}</span>
-            <span className="sm:hidden">下一题</span>
-            <ArrowRight aria-hidden="true" size={16} />
-          </Link>
-        ) : <span />}
-      </nav>
     </article>
   );
 }
 
 function Markdown({ children }: { children: string }) {
   return (
-    <ReactMarkdown
-      skipHtml
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeKatex]}
-    >
+    <ReactMarkdown skipHtml remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
       {children}
     </ReactMarkdown>
   );

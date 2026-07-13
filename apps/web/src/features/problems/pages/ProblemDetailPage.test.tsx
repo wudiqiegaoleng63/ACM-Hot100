@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
+
+import { AuthProvider } from '@/features/auth/contexts/auth-context';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import ProblemDetailPage from './ProblemDetailPage';
@@ -14,6 +16,9 @@ describe('ProblemDetailPage', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>().mockImplementation((input) => {
+        if (String(input) === '/api/v1/auth/me') return Promise.resolve(unauthorizedResponse());
+        if (String(input) === '/api/v1/auth/refresh') return Promise.resolve(unauthorizedResponse());
+        if (String(input) === '/api/v1/languages') return Promise.resolve(jsonResponse([]));
         if (String(input).endsWith('/navigation')) {
           return Promise.resolve(jsonResponse({ prev: null, next: null }));
         }
@@ -32,9 +37,11 @@ describe('ProblemDetailPage', () => {
   it('renders an error state when the problem request fails', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>().mockResolvedValue(
-        jsonResponse({ error: { code: 'NOT_FOUND', message: 'not found' }, request_id: '1' }, 404),
-      ),
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        if (String(input) === '/api/v1/auth/me') return Promise.resolve(unauthorizedResponse());
+        if (String(input) === '/api/v1/auth/refresh') return Promise.resolve(unauthorizedResponse());
+        return Promise.resolve(jsonResponse({ error: { code: 'NOT_FOUND', message: 'not found' }, request_id: '1' }, 404));
+      }),
     );
 
     renderPage();
@@ -50,7 +57,9 @@ function renderPage() {
   );
   return render(
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </QueryClientProvider>,
   );
 }
@@ -60,6 +69,10 @@ function jsonResponse(payload: unknown, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+function unauthorizedResponse() {
+  return jsonResponse({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' }, request_id: 'auth' }, 401);
 }
 
 const problemPayload = {
