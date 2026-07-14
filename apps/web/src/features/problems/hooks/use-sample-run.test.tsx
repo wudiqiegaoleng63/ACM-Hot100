@@ -28,6 +28,7 @@ const mockRunAC = {
 
 describe('useSampleRun', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -74,5 +75,23 @@ describe('useSampleRun', () => {
 
     await act(async () => new Promise((resolve) => setTimeout(resolve, 500)));
     expect(callCount).toBe(callsAfterTerminal);
+  });
+
+  it('cancels polling when the hook unmounts', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(mockRunQueued), { headers: { 'Content-Type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { unmount } = renderHook(() => useSampleRun('run-1'), {
+      wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    const callsBeforeUnmount = fetchMock.mock.calls.length;
+
+    unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+    expect(fetchMock).toHaveBeenCalledTimes(callsBeforeUnmount);
   });
 });

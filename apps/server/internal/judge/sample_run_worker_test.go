@@ -76,6 +76,51 @@ func TestSampleRunWorkerProcessesQueuedRunAndAcknowledges(t *testing.T) {
 	}
 }
 
+func TestSampleRunWorkerCompletesReclaimedRunningRun(t *testing.T) {
+	db, mock := judgeTestDB(t)
+	redisServer := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	ctx := context.Background()
+
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `sample_runs` WHERE id = ? ORDER BY `sample_runs`.`id` LIMIT ?")).
+		WithArgs("run-recovered", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow("run-recovered", "RUNNING"))
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE `sample_runs`").
+		WithArgs("", sqlmock.AnyArg(), "", "AC", sqlmock.AnyArg(), "run-recovered", "RUNNING").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	worker := NewSampleRunWorker(db, rdb, "recovery-worker")
+	worker.sleep = func(context.Context, time.Duration) error { return nil }
+	if err := worker.EnsureGroup(ctx); err != nil {
+		t.Fatalf("EnsureGroup: %v", err)
+	}
+	messageID, err := rdb.XAdd(ctx, &redis.XAddArgs{
+		Stream: "judge:runs", Values: map[string]interface{}{"run_id": "run-recovered"},
+	}).Result()
+	if err != nil {
+		t.Fatalf("XAdd: %v", err)
+	}
+	streams, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group: "judge-workers", Consumer: "dead-worker", Streams: []string{"judge:runs", ">"}, Count: 1,
+	}).Result()
+	if err != nil {
+		t.Fatalf("XReadGroup: %v", err)
+	}
+	if err := worker.ProcessMessage(ctx, streams[0].Messages[0]); err != nil {
+		t.Fatalf("ProcessMessage: %v", err)
+	}
+	pending, err := rdb.XPending(ctx, "judge:runs", "judge-workers").Result()
+	if err != nil || pending.Count != 0 {
+		t.Fatalf("pending = %#v, %v after recovered ACK for %s", pending, err, messageID)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
 func judgeTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	sqlDB, mock, err := sqlmock.New()

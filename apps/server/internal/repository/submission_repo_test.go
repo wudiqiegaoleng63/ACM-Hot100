@@ -94,8 +94,53 @@ func TestWriteSubmissionResultPersistsSanitizedErrorMessage(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	if err := WriteSubmissionResult(db, "sub-3", model.SubmissionStatusRuntimeError, 1, 3, 20, 2048, "", "Runtime Error at [path]", judgedAt); err != nil {
+	updated, err := WriteSubmissionResult(db, "sub-3", model.SubmissionStatusRuntimeError, 1, 3, 20, 2048, "", "Runtime Error at [path]", judgedAt)
+	if err != nil {
 		t.Fatalf("WriteSubmissionResult: %v", err)
+	}
+	if !updated {
+		t.Fatal("WriteSubmissionResult did not record an allowed terminal transition")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
+func TestWriteSubmissionResultRejectsTerminalRegression(t *testing.T) {
+	db, mock := repositoryTestDB(t)
+	judgedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE `submissions`").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	updated, err := WriteSubmissionResult(db, "sub-terminal", model.SubmissionStatusWrongAnswer, 0, 3, 20, 2048, "", "wrong answer", judgedAt)
+	if err != nil {
+		t.Fatalf("WriteSubmissionResult: %v", err)
+	}
+	if updated {
+		t.Fatal("terminal submission regressed to another result")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
+func TestPrepareSubmissionRetryOnlyResetsInFlightStatus(t *testing.T) {
+	db, mock := repositoryTestDB(t)
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE `submissions`").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "sub-running", model.SubmissionStatusCompiling, model.SubmissionStatusRunning, 2).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	prepared, err := PrepareSubmissionRetry(db, "sub-running", 2)
+	if err != nil {
+		t.Fatalf("PrepareSubmissionRetry: %v", err)
+	}
+	if !prepared {
+		t.Fatal("in-flight submission was not prepared for recovery")
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet SQL expectations: %v", err)

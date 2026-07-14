@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router';
 import { verifyEmail, resendVerification } from '@/features/auth/lib/auth-api';
 import { ApiError } from '@/lib/api-client';
@@ -15,30 +15,30 @@ export default function VerifyEmailPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendEmail, setResendEmail] = useState('');
   const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const verificationRequest = useRef<ReturnType<typeof verifyEmail> | null>(null);
 
   useEffect(() => {
     if (!token) return;
+    const request = verificationRequest.current ?? verifyEmail(token);
+    verificationRequest.current = request;
 
     let cancelled = false;
-    (async () => {
-      try {
-        await verifyEmail(token);
-        if (!cancelled) setState('success');
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof ApiError) {
-          if (err.code === 'TOKEN_EXPIRED') {
-            setState('expired');
-          } else if (err.code === 'TOKEN_ALREADY_USED') {
-            setState('already-used');
-          } else {
-            setState('error');
-          }
+    request.then(() => {
+      if (!cancelled) setState('success');
+    }).catch((err: unknown) => {
+      if (cancelled) return;
+      if (err instanceof ApiError) {
+        if (err.code === 'TOKEN_EXPIRED') {
+          setState('expired');
+        } else if (err.code === 'TOKEN_ALREADY_USED') {
+          setState('already-used');
         } else {
           setState('error');
         }
+      } else {
+        setState('error');
       }
-    })();
+    });
 
     return () => { cancelled = true; };
   }, [token]);

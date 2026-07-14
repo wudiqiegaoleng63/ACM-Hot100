@@ -18,6 +18,7 @@ vi.mock('./CodeEditor', () => ({
       <output data-testid="editor-language">{language}</output>
       <output data-testid="editor-value">{value}</output>
       <button onClick={() => onChange('modified source')}>修改代码</button>
+      <button onClick={() => onChange('modified source 2')}>再次修改代码</button>
       <button onClick={() => onChange('a'.repeat(64 * 1024 + 1))}>写入超限代码</button>
     </div>
   ),
@@ -176,6 +177,55 @@ describe('LanguageEditor', () => {
 
     await act(async () => new Promise((resolve) => setTimeout(resolve, 550)));
     expect(putCalls(fetchMock)).toHaveLength(1);
+  });
+
+  it('debounces rapid edits into one server save exactly 500ms after the last edit', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input, init) => {
+      if (String(input) === '/api/v1/languages') return Promise.resolve(jsonResponse(languages));
+      if (String(input).endsWith('/drafts/cpp17') && init?.method === 'GET') {
+        return Promise.resolve(jsonResponse({ source_code: 'cpp template', language_key: 'cpp17', updated_at: '2026-07-13T14:40:00Z' }));
+      }
+      if (String(input).endsWith('/drafts/cpp17') && init?.method === 'PUT') {
+        return Promise.resolve(jsonResponse({ source_code: 'modified source 2', language_key: 'cpp17', updated_at: '2026-07-13T14:41:00Z' }));
+      }
+      return Promise.reject(new Error(`unexpected request ${String(input)}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderEditor('user-1');
+    expect(await screen.findByRole('button', { name: '修改代码' })).toBeInTheDocument();
+    vi.useFakeTimers();
+
+    fireEvent.click(screen.getByRole('button', { name: '修改代码' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    fireEvent.click(screen.getByRole('button', { name: '再次修改代码' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(499); });
+    expect(putCalls(fetchMock)).toHaveLength(0);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(putCalls(fetchMock)).toHaveLength(1);
+    expect(JSON.parse(String(putCalls(fetchMock)[0]?.[1]?.body))).toMatchObject({ source_code: 'modified source 2' });
+  });
+
+  it('flushes the original problem draft when the editor unmounts', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input, init) => {
+      if (String(input) === '/api/v1/languages') return Promise.resolve(jsonResponse(languages));
+      if (String(input).endsWith('/drafts/cpp17') && init?.method === 'GET') {
+        return Promise.resolve(jsonResponse({ source_code: 'cpp template', language_key: 'cpp17', updated_at: '2026-07-13T14:40:00Z' }));
+      }
+      if (init?.method === 'PUT') return Promise.resolve(jsonResponse({ source_code: 'modified source', language_key: 'cpp17', updated_at: '2026-07-13T14:41:00Z' }));
+      return Promise.reject(new Error(`unexpected request ${String(input)}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const view = renderEditor('user-1');
+    expect(await screen.findByRole('button', { name: '修改代码' })).toBeInTheDocument();
+    vi.useFakeTimers();
+
+    fireEvent.click(screen.getByRole('button', { name: '修改代码' }));
+    await act(async () => {});
+    view.unmount();
+    await act(async () => {});
+    expect(putCalls(fetchMock)).toHaveLength(1);
+    expect(String(putCalls(fetchMock)[0]?.[0])).toContain('/problems/two-sum-target/drafts/cpp17');
   });
 
   it('keeps local source and shows a non-blocking warning when server save fails', async () => {

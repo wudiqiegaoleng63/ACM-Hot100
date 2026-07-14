@@ -54,6 +54,53 @@ func TestRunStreamConsumerGroupRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSubmissionAutoClaimTransfersOnlyIdlePendingMessages(t *testing.T) {
+	server := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	SetPrefix("claim-test:")
+	t.Cleanup(func() { SetPrefix("") })
+	ctx := context.Background()
+
+	if err := EnsureSubmissionConsumerGroup(ctx, rdb); err != nil {
+		t.Fatalf("EnsureSubmissionConsumerGroup: %v", err)
+	}
+	messageID, err := EnqueueSubmission(ctx, rdb, "sub-stale")
+	if err != nil {
+		t.Fatalf("EnqueueSubmission: %v", err)
+	}
+	messages, err := ReadSubmissions(ctx, rdb, "dead-consumer", time.Millisecond)
+	if err != nil || len(messages) != 1 {
+		t.Fatalf("ReadSubmissions = %#v, %v; want one message", messages, err)
+	}
+
+	claimed, err := ClaimPendingSubmissions(ctx, rdb, "recovery-consumer")
+	if err != nil {
+		t.Fatalf("claim before idle threshold: %v", err)
+	}
+	if len(claimed) != 0 {
+		t.Fatalf("claimed %d fresh messages, want 0", len(claimed))
+	}
+
+	server.SetTime(time.Now().Add(minIdleForReclaim))
+	claimed, err = ClaimPendingSubmissions(ctx, rdb, "recovery-consumer")
+	if err != nil {
+		t.Fatalf("claim stale message: %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].ID != messageID {
+		t.Fatalf("claimed = %#v, want message %s", claimed, messageID)
+	}
+	pending, err := rdb.XPendingExt(ctx, &redis.XPendingExtArgs{
+		Stream: KeyJudgeSubmissions(), Group: ConsumerGroup, Start: "-", End: "+", Count: 10,
+	}).Result()
+	if err != nil {
+		t.Fatalf("XPendingExt: %v", err)
+	}
+	if len(pending) != 1 || pending[0].Consumer != "recovery-consumer" {
+		t.Fatalf("pending = %#v, want recovery-consumer ownership", pending)
+	}
+}
+
 func TestSubmissionStreamConsumerGroupRoundTrip(t *testing.T) {
 	server := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: server.Addr()})

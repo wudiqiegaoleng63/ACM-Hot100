@@ -76,6 +76,20 @@ describe('formal submission polling', () => {
     });
     expect(result.current.pollTimedOut).toBe(false);
   });
+
+  it('cancels formal polling and timeout timers on unmount', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(queuedSubmission));
+    vi.stubGlobal('fetch', fetchMock);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { unmount } = renderHook(() => useSubmission('submission-1'), { wrapper: wrapper(queryClient) });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    const callsBeforeUnmount = fetchMock.mock.calls.length;
+
+    unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(SUBMISSION_MAX_POLL_MS + 1); });
+    expect(fetchMock).toHaveBeenCalledTimes(callsBeforeUnmount);
+  });
 });
 
 function wrapper(queryClient: QueryClient) {

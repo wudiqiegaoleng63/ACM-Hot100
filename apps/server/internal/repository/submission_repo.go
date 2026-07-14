@@ -125,6 +125,22 @@ func ClaimQueuedSubmission(db *gorm.DB, submissionID, nextStatus string, claimed
 	return result.RowsAffected == 1, result.Error
 }
 
+// PrepareSubmissionRetry atomically returns a crashed in-flight submission to QUEUED
+// and records one recovery attempt.
+func PrepareSubmissionRetry(db *gorm.DB, submissionID string, maxRetries int) (bool, error) {
+	result := db.Model(&model.Submission{}).
+		Where("id = ? AND status IN ? AND retry_count < ?", submissionID, []string{
+			model.SubmissionStatusCompiling,
+			model.SubmissionStatusRunning,
+		}, maxRetries).
+		Updates(map[string]interface{}{
+			"status":      model.SubmissionStatusQueued,
+			"claimed_at":  nil,
+			"retry_count": gorm.Expr("retry_count + 1"),
+		})
+	return result.RowsAffected == 1, result.Error
+}
+
 // GetSubmissionByID returns a submission by ID for worker-side state inspection.
 func GetSubmissionByID(db *gorm.DB, submissionID string) (*model.Submission, error) {
 	var submission model.Submission
@@ -138,8 +154,8 @@ func GetSubmissionByID(db *gorm.DB, submissionID string) (*model.Submission, err
 }
 
 // WriteSubmissionResult updates the submission row with the final judge result fields.
-func WriteSubmissionResult(db *gorm.DB, submissionID, status string, passedCases, totalCases, totalTimeMs, peakMemoryKb int, compilerOutput, errorMessage string, judgedAt time.Time) error {
-	return db.Model(&model.Submission{}).
+func WriteSubmissionResult(db *gorm.DB, submissionID, status string, passedCases, totalCases, totalTimeMs, peakMemoryKb int, compilerOutput, errorMessage string, judgedAt time.Time) (bool, error) {
+	result := db.Model(&model.Submission{}).
 		Where("id = ? AND status IN ?", submissionID, []string{model.SubmissionStatusCompiling, model.SubmissionStatusRunning}).
 		Updates(map[string]interface{}{
 			"status":          status,
@@ -150,7 +166,8 @@ func WriteSubmissionResult(db *gorm.DB, submissionID, status string, passedCases
 			"compiler_output": compilerOutput,
 			"error_message":   errorMessage,
 			"judged_at":       judgedAt,
-		}).Error
+		})
+	return result.RowsAffected == 1, result.Error
 }
 
 // CaseResultInput is a plain data struct for writing case results without importing judge.

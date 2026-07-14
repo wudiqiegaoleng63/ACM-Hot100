@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthProvider, ProtectedRoute } from './auth-context';
@@ -34,6 +34,7 @@ describe('authentication route protection', () => {
       ),
     );
     expect(await screen.findByText('登录页面')).toBeInTheDocument();
+    expect(screen.getByTestId('login-return-path')).toHaveTextContent('/profile');
   });
 
   it('renders protected content when auth/me returns a user envelope', async () => {
@@ -60,6 +61,17 @@ describe('authentication route protection', () => {
   });
 });
 
+function LoginDestination() {
+  const location = useLocation();
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '';
+  return (
+    <div>
+      登录页面
+      <output data-testid="login-return-path">{from}</output>
+    </div>
+  );
+}
+
 function renderProtectedRoute() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -77,7 +89,7 @@ function renderProtectedRoute() {
                 </ProtectedRoute>
               )}
             />
-            <Route path="/login" element={<div>登录页面</div>} />
+            <Route path="/login" element={<LoginDestination />} />
           </Routes>
         </MemoryRouter>
       </AuthProvider>

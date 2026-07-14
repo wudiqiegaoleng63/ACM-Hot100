@@ -100,18 +100,22 @@ func main() {
 		log.Fatalf("Failed to initialize submission consumer group: %v", err)
 	}
 
+	// Initialize submission reconciliation for MySQL rows left without queue metadata.
+	submissionReconciler := queue.NewSubmissionReconciler(db, rdb)
+
 	// Set up graceful shutdown
 	workerCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	log.Printf("Judge worker started (mode: %s, consumer: %s)", cfg.JudgeMode, consumerName)
 
-	// Run both workers concurrently
-	errCh := make(chan error, 2)
+	// Run both workers and the reconciler concurrently.
+	errCh := make(chan error, 3)
 
 	go func() {
 		if err := sampleRunWorker.Run(workerCtx); err != nil {
 			errCh <- fmt.Errorf("sample run worker: %w", err)
+			return
 		}
 		errCh <- nil
 	}()
@@ -119,25 +123,38 @@ func main() {
 	go func() {
 		if err := submissionWorker.Run(workerCtx); err != nil {
 			errCh <- fmt.Errorf("submission worker: %w", err)
+			return
 		}
 		errCh <- nil
 	}()
 
-	// Wait for context cancellation or worker errors
+	go func() {
+		if err := submissionReconciler.Run(workerCtx); err != nil {
+			errCh <- fmt.Errorf("submission reconciler: %w", err)
+			return
+		}
+		errCh <- nil
+	}()
+
+	// Wait for context cancellation or the first worker exit, then stop all peers.
+	completed := 0
 	select {
 	case <-workerCtx.Done():
 		log.Println("Shutdown signal received, waiting for workers to finish...")
 	case err := <-errCh:
+		completed = 1
 		if err != nil {
-			log.Fatalf("Worker error: %v", err)
+			log.Printf("Worker error: %v", err)
 		}
+		stop()
 	}
 
-	// Wait for both workers to complete
-	for i := 0; i < 2; i++ {
+	// Wait for all remaining workers to complete.
+	for completed < 3 {
 		if err := <-errCh; err != nil {
 			log.Printf("Worker error during shutdown: %v", err)
 		}
+		completed++
 	}
 
 	log.Println("Judge worker shut down")
