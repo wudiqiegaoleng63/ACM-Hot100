@@ -165,6 +165,18 @@ func GetProblemBySlug(db *gorm.DB, slug string) (*model.Problem, error) {
 	return &problem, nil
 }
 
+// GetProblemByID returns a single problem by its ID, or nil if not found.
+func GetProblemByID(db *gorm.DB, id string) (*model.Problem, error) {
+	var problem model.Problem
+	if err := db.Where("id = ?", id).First(&problem).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &problem, nil
+}
+
 // GetProblemNavigation returns the previous and next problem by order_index.
 func GetProblemNavigation(db *gorm.DB, slug string) (*ProblemNav, *ProblemNav, error) {
 	// First get the current problem's order_index

@@ -9,16 +9,16 @@ import (
 // ─── Submission status constants ────────────────────────────────────────────
 
 const (
-	SubmissionStatusPending      = "PENDING"
-	SubmissionStatusInQueue      = "IN_QUEUE"
-	SubmissionStatusProcessing   = "PROCESSING"
-	SubmissionStatusAccepted     = "ACCEPTED"
-	SubmissionStatusWrongAnswer  = "WRONG_ANSWER"
-	SubmissionStatusTimeLimit    = "TIME_LIMIT_EXCEEDED"
-	SubmissionStatusMemoryLimit  = "MEMORY_LIMIT_EXCEEDED"
-	SubmissionStatusRuntimeError = "RUNTIME_ERROR"
-	SubmissionStatusCompileError = "COMPILE_ERROR"
-	SubmissionStatusSystemError  = "SYSTEM_ERROR"
+	SubmissionStatusQueued      = "QUEUED"
+	SubmissionStatusCompiling   = "COMPILING"
+	SubmissionStatusRunning     = "RUNNING"
+	SubmissionStatusAccepted    = "AC"
+	SubmissionStatusWrongAnswer = "WA"
+	SubmissionStatusTimeLimit   = "TLE"
+	SubmissionStatusMemoryLimit = "MLE"
+	SubmissionStatusRuntimeError = "RE"
+	SubmissionStatusCompileError = "CE"
+	SubmissionStatusSystemError = "SYSTEM_ERROR"
 )
 
 // ─── Sample run status constants ───────────────────────────────────────────
@@ -202,7 +202,7 @@ type Submission struct {
 	ProblemID       string     `gorm:"type:char(36);not null;index" json:"problem_id"`
 	LanguageKey     string     `gorm:"type:varchar(20);not null;column:language_key" json:"language_key"`
 	SourceCode      string     `gorm:"type:text;not null;column:source_code" json:"source_code"`
-	Status          string     `gorm:"type:varchar(20);not null;default:'PENDING';index" json:"status"`
+	Status          string     `gorm:"type:varchar(20);not null;default:'QUEUED';index" json:"status"`
 	PassedCases     int        `gorm:"not null;default:0;column:passed_cases" json:"passed_cases"`
 	TotalCases      int        `gorm:"not null;default:0;column:total_cases" json:"total_cases"`
 	TimeMs          *int       `gorm:"column:time_ms" json:"time_ms"`

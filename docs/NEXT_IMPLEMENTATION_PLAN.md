@@ -321,7 +321,7 @@ Phase 2 验收：刷新后草稿不丢；三种语言可切换；样例运行完
 
 ## 6. Phase 3A · 正式提交与判题内核
 
-### [ ] P3-01 · Submission Repository 与 API
+### [x] P3-01 · Submission Repository 与 API
 
 - 实现创建提交、本人列表、本人详情。
 - 创建时在 MySQL 事务中写入 `QUEUED` 和 `ATTEMPTED` Progress。
