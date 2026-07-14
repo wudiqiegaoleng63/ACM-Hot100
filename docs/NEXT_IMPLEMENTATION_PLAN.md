@@ -342,7 +342,7 @@ Phase 2 验收：刷新后草稿不丢；三种语言可切换；样例运行完
 
 建议提交信息：`feat: 实现提交队列与丢消息补偿`
 
-### [ ] P3-03 · Judge Adapter 接口、Mock 与比较器
+### [x] P3-03 · Judge Adapter 接口、Mock 与比较器
 
 - 定义小接口，不让 Worker 直接依赖 HTTP 细节。
 - 实现确定性的 Fake/Mock Adapter，测试可注入 AC/WA/CE/TLE/MLE/RE/SYSTEM_ERROR。
