@@ -13,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
+
 const (
 	defaultSubmissionReadBlock = 5 * time.Second
 	submissionLockTTL          = 300 * time.Second // 5 minutes
@@ -130,7 +131,7 @@ func (w *SubmissionWorker) completeSubmission(_ context.Context, submissionID st
 	return w.db.Transaction(func(tx *gorm.DB) error {
 		if err := repository.WriteSubmissionResult(tx, submissionID, result.Status,
 			result.PassedCases, result.TotalCases, result.TotalTimeMs, result.PeakMemoryKb,
-			result.CompilerOutput, judgedAt); err != nil {
+			result.CompilerOutput, result.ErrorMessage, judgedAt); err != nil {
 			return err
 		}
 

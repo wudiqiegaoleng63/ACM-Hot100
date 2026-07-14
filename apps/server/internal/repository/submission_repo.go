@@ -21,8 +21,8 @@ func CreateSubmission(db *gorm.DB, submission *model.Submission) error {
 		result := tx.Model(&model.UserProblemProgress{}).
 			Where("user_id = ? AND problem_id = ?", submission.UserID, submission.ProblemID).
 			Updates(map[string]interface{}{
-				"state":            model.ProgressAttempted,
-				"attempt_count":    gorm.Expr("attempt_count + 1"),
+				"state":             model.ProgressAttempted,
+				"attempt_count":     gorm.Expr("attempt_count + 1"),
 				"last_submitted_at": now,
 			})
 		if result.Error != nil {
@@ -138,7 +138,7 @@ func GetSubmissionByID(db *gorm.DB, submissionID string) (*model.Submission, err
 }
 
 // WriteSubmissionResult updates the submission row with the final judge result fields.
-func WriteSubmissionResult(db *gorm.DB, submissionID, status string, passedCases, totalCases, totalTimeMs, peakMemoryKb int, compilerOutput string, judgedAt time.Time) error {
+func WriteSubmissionResult(db *gorm.DB, submissionID, status string, passedCases, totalCases, totalTimeMs, peakMemoryKb int, compilerOutput, errorMessage string, judgedAt time.Time) error {
 	return db.Model(&model.Submission{}).
 		Where("id = ? AND status IN ?", submissionID, []string{model.SubmissionStatusCompiling, model.SubmissionStatusRunning}).
 		Updates(map[string]interface{}{
@@ -148,6 +148,7 @@ func WriteSubmissionResult(db *gorm.DB, submissionID, status string, passedCases
 			"time_ms":         totalTimeMs,
 			"memory_kb":       peakMemoryKb,
 			"compiler_output": compilerOutput,
+			"error_message":   errorMessage,
 			"judged_at":       judgedAt,
 		}).Error
 }

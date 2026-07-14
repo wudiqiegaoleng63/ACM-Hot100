@@ -48,14 +48,14 @@ func NewJudge0Adapter(db *gorm.DB, cfg Judge0AdapterConfig) *Judge0Adapter {
 
 // Judge0 status ID mapping
 const (
-	judge0StatusAccepted       = 3
-	judge0StatusWrongAnswer    = 4
-	judge0StatusTimeLimit      = 5
-	judge0StatusMemoryLimit    = 6
-	judge0StatusRuntimeError   = 7 // SIGSEGV
+	judge0StatusAccepted         = 3
+	judge0StatusWrongAnswer      = 4
+	judge0StatusTimeLimit        = 5
+	judge0StatusMemoryLimit      = 6
+	judge0StatusRuntimeError     = 7 // SIGSEGV
 	judge0StatusCompilationError = 13
-	judge0StatusInternalError  = 10
-	judge0StatusExecFormatError = 11
+	judge0StatusInternalError    = 10
+	judge0StatusExecFormatError  = 11
 )
 
 // mapJudge0Status maps a Judge0 status ID to our internal status string.
@@ -156,6 +156,7 @@ func (a *Judge0Adapter) Judge(ctx context.Context, submissionID string) (*JudgeR
 	peakMemoryKb := 0
 	firstNonACStatus := ""
 	compilerOutput := ""
+	errorMessage := ""
 
 	for i, tc := range testCases {
 		req := judge0SubmissionRequest{
@@ -183,9 +184,12 @@ func (a *Judge0Adapter) Judge(ctx context.Context, submissionID string) (*JudgeR
 		// Parse time
 		timeMs := parseTimeMs(result.Time)
 
-		// Capture compiler output from first case
+		// Capture sanitized diagnostics without exposing host paths.
 		if i == 0 && result.CompileOutput != nil {
 			compilerOutput = TruncateOutput(SanitizePath(*result.CompileOutput))
+		}
+		if errorMessage == "" && result.Stderr != nil {
+			errorMessage = TruncateOutput(SanitizePath(*result.Stderr))
 		}
 
 		// For CE, stop immediately
@@ -193,6 +197,7 @@ func (a *Judge0Adapter) Judge(ctx context.Context, submissionID string) (*JudgeR
 			return &JudgeResult{
 				Status:         model.SubmissionStatusCompileError,
 				CompilerOutput: compilerOutput,
+				ErrorMessage:   errorMessage,
 				CaseResults:    []Verdict{{Status: model.SubmissionStatusCompileError}},
 			}, nil
 		}
@@ -243,8 +248,9 @@ func (a *Judge0Adapter) Judge(ctx context.Context, submissionID string) (*JudgeR
 		PassedCases:    passedCases,
 		TotalCases:     len(testCases),
 		TotalTimeMs:    totalTimeMs,
-		PeakMemoryKb:  peakMemoryKb,
+		PeakMemoryKb:   peakMemoryKb,
 		CompilerOutput: compilerOutput,
+		ErrorMessage:   errorMessage,
 		CaseResults:    verdicts,
 	}, nil
 }

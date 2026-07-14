@@ -192,3 +192,101 @@ export async function saveDraft(slug: string, languageKey: string, sourceCode: s
 export async function getDraft(slug: string, languageKey: string): Promise<DraftData> {
   return draftSchema.parse(await api.get<unknown>(`/problems/${slug}/drafts/${languageKey}`));
 }
+
+// --- Submission types and API ---
+
+export const submissionStatusSchema = z.enum([
+  'QUEUED', 'COMPILING', 'RUNNING',
+  'AC', 'WA', 'TLE', 'MLE', 'RE', 'CE', 'SYSTEM_ERROR',
+]);
+export type SubmissionStatus = z.infer<typeof submissionStatusSchema>;
+
+export function isTerminalSubmissionStatus(status: SubmissionStatus): boolean {
+  return ['AC', 'WA', 'TLE', 'MLE', 'RE', 'CE', 'SYSTEM_ERROR'].includes(status);
+}
+
+const caseResultSchema = z.object({
+  case_index: z.number().int(),
+  status: submissionStatusSchema,
+  time_ms: z.number().int().nullable(),
+  memory_kb: z.number().int().nullable(),
+  actual_output: z.string().optional(),
+  is_sample: z.boolean(),
+});
+
+const submissionDetailSchema = z.object({
+  id: z.string(),
+  problem_slug: z.string(),
+  language_key: z.string(),
+  source_code: z.string(),
+  status: submissionStatusSchema,
+  passed_cases: z.number().int(),
+  total_cases: z.number().int(),
+  time_ms: z.number().int().nullable(),
+  memory_kb: z.number().int().nullable(),
+  compiler_output: z.string(),
+  error_message: z.string(),
+  case_results: z.array(caseResultSchema),
+  created_at: z.string().datetime({ offset: true }),
+  judged_at: z.string().datetime({ offset: true }).nullable(),
+});
+
+export type SubmissionDetail = z.infer<typeof submissionDetailSchema>;
+
+const submissionSummarySchema = z.object({
+  id: z.string(),
+  problem_slug: z.string(),
+  language_key: z.string(),
+  status: submissionStatusSchema,
+  passed_cases: z.number().int(),
+  total_cases: z.number().int(),
+  time_ms: z.number().int().nullable(),
+  memory_kb: z.number().int().nullable(),
+  created_at: z.string().datetime({ offset: true }),
+});
+
+export type SubmissionSummary = z.infer<typeof submissionSummarySchema>;
+
+const submissionListResponseSchema = z.object({
+  items: z.array(submissionSummarySchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  page_size: z.number().int().positive(),
+});
+
+export type SubmissionListResponse = z.infer<typeof submissionListResponseSchema>;
+
+export interface SubmissionListParams {
+  problem?: string;
+  status?: SubmissionStatus;
+  language?: string;
+  page?: number;
+  page_size?: number;
+}
+
+const createSubmissionResponseSchema = z.object({
+  id: z.string(),
+  status: z.literal('QUEUED'),
+  created_at: z.string().datetime({ offset: true }),
+});
+
+export type CreateSubmissionResponse = z.infer<typeof createSubmissionResponseSchema>;
+
+export async function createSubmission(slug: string, languageKey: string, sourceCode: string): Promise<CreateSubmissionResponse> {
+  return createSubmissionResponseSchema.parse(
+    await api.post<unknown>(`/problems/${slug}/submissions`, {
+      language_key: languageKey,
+      source_code: sourceCode,
+    }),
+  );
+}
+
+export async function getSubmission(id: string): Promise<SubmissionDetail> {
+  return submissionDetailSchema.parse(await api.get<unknown>(`/submissions/${id}`));
+}
+
+export async function listSubmissions(params?: SubmissionListParams): Promise<SubmissionListResponse> {
+  return submissionListResponseSchema.parse(
+    await api.get<unknown>('/submissions', params as Record<string, string | number | undefined>),
+  );
+}

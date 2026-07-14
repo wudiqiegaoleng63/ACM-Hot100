@@ -12,12 +12,13 @@ type Verdict struct {
 
 // JudgeResult holds the aggregated result for a submission.
 type JudgeResult struct {
-	Status         string    // AC, WA, TLE, MLE, RE, CE, SYSTEM_ERROR
+	Status         string // AC, WA, TLE, MLE, RE, CE, SYSTEM_ERROR
 	PassedCases    int
 	TotalCases     int
 	TotalTimeMs    int
-	PeakMemoryKb  int
-	CompilerOutput string   // truncated to 8KB
+	PeakMemoryKb   int
+	CompilerOutput string // truncated to 8KB
+	ErrorMessage   string // sanitized and truncated to 8KB
 	CaseResults    []Verdict
 }
 

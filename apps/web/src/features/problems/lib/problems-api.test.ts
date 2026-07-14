@@ -2,13 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createSampleRun,
+  createSubmission,
   getDraft,
   getHealth,
   getLanguages,
   getProblem,
   getProblems,
   getSampleRun,
+  getSubmission,
   isTerminalRunStatus,
+  isTerminalSubmissionStatus,
   saveDraft,
 } from './problems-api';
 
@@ -214,6 +217,48 @@ describe('problems API contract', () => {
     expect(isTerminalRunStatus('RUNNING')).toBe(false);
   });
 
+  it('creates a formal submission using the validated QUEUED response contract', async () => {
+    const payload = {
+      id: 'submission-1',
+      status: 'QUEUED',
+      created_at: '2026-07-14T00:00:00Z',
+    };
+    const fetchMock = jsonFetch(payload);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createSubmission('two-sum-target', 'cpp17', 'int main() {}')).resolves.toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/problems/two-sum-target/submissions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ language_key: 'cpp17', source_code: 'int main() {}' }),
+      }),
+    );
+  });
+
+  it('parses a formal submission without hidden case output', async () => {
+    const payload = submissionPayload('WA');
+    vi.stubGlobal('fetch', jsonFetch(payload));
+
+    await expect(getSubmission('submission-1')).resolves.toEqual(payload);
+    expect(payload.case_results[0]).not.toHaveProperty('actual_output');
+  });
+
+  it('identifies every formal terminal status', () => {
+    for (const status of ['AC', 'WA', 'TLE', 'MLE', 'RE', 'CE', 'SYSTEM_ERROR'] as const) {
+      expect(isTerminalSubmissionStatus(status)).toBe(true);
+    }
+    for (const status of ['QUEUED', 'COMPILING', 'RUNNING'] as const) {
+      expect(isTerminalSubmissionStatus(status)).toBe(false);
+    }
+  });
+
+  it('rejects an invalid formal submission status', async () => {
+    vi.stubGlobal('fetch', jsonFetch({ ...submissionPayload('WA'), status: 'PENDING' }));
+
+    await expect(getSubmission('submission-1')).rejects.toThrow();
+  });
+
   it('parses the health response with judge_mode', async () => {
     const payload = {
       status: 'ok',
@@ -225,6 +270,25 @@ describe('problems API contract', () => {
     await expect(getHealth()).resolves.toEqual(payload);
   });
 });
+
+function submissionPayload(status: 'WA' | 'AC') {
+  return {
+    id: 'submission-1',
+    problem_slug: 'two-sum-target',
+    language_key: 'cpp17',
+    source_code: 'int main() {}',
+    status,
+    passed_cases: status === 'AC' ? 8 : 2,
+    total_cases: 8,
+    time_ms: 42,
+    memory_kb: 2048,
+    compiler_output: '',
+    error_message: '',
+    case_results: [{ case_index: 2, status, time_ms: 10, memory_kb: 1024, is_sample: false }],
+    created_at: '2026-07-14T00:00:00Z',
+    judged_at: '2026-07-14T00:00:01Z',
+  };
+}
 
 function jsonFetch(payload: unknown) {
   return vi.fn<typeof fetch>().mockResolvedValue(

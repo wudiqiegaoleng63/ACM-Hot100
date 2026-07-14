@@ -1,10 +1,10 @@
-import { ArrowLeft, ArrowRight, Loader2, Play, RefreshCw, Send, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Copy, Loader2, Play, RefreshCw, Send, XCircle, Zap } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 
-import { useCreateSampleRun, useSampleRun, useHealth } from '@/features/problems/hooks/use-problems';
-import type { ProblemNavigation, SampleCase, SampleRunStatus } from '@/features/problems/lib/problems-api';
-import { isTerminalRunStatus } from '@/features/problems/lib/problems-api';
+import { useCreateSampleRun, useSampleRun, useHealth, useCreateSubmission, useSubmission } from '@/features/problems/hooks/use-problems';
+import type { ProblemNavigation, SampleCase, SampleRunStatus, SubmissionDetail, SubmissionStatus } from '@/features/problems/lib/problems-api';
+import { isTerminalRunStatus, isTerminalSubmissionStatus } from '@/features/problems/lib/problems-api';
 
 const SPLIT_RATIO_KEY = 'problem-workspace:split-ratio';
 const DEFAULT_SPLIT_RATIO = 46;
@@ -28,6 +28,8 @@ interface ProblemWorkspaceProps {
   sampleCases: SampleCase[];
   languageKey: string;
   sourceCode: string;
+  timeLimitMs?: number;
+  memoryLimitKb?: number;
 }
 
 export default function ProblemWorkspace({
@@ -40,6 +42,8 @@ export default function ProblemWorkspace({
   sampleCases,
   languageKey,
   sourceCode,
+  timeLimitMs,
+  memoryLimitKb,
 }: ProblemWorkspaceProps) {
   const isMobile = useMediaQuery(MOBILE_QUERY);
   const [mobileTab, setMobileTab] = useState<MobileTab>('statement');
@@ -57,9 +61,14 @@ export default function ProblemWorkspace({
   const [customInputError, setCustomInputError] = useState('');
   const [activeRunID, setActiveRunID] = useState<string | null>(null);
   const [runError, setRunError] = useState('');
+  const [submissionID, setSubmissionID] = useState<string | null>(null);
+  const [submissionMode, setSubmissionMode] = useState(false);
+  const [submissionError, setSubmissionError] = useState('');
 
   const createRun = useCreateSampleRun();
   const sampleRun = useSampleRun(activeRunID);
+  const createSubmission = useCreateSubmission();
+  const submissionQuery = useSubmission(submissionID);
   const health = useHealth();
   const isMockJudge = health.data?.judge_mode === 'mock';
 
@@ -79,6 +88,9 @@ export default function ProblemWorkspace({
     setSelectedSampleID(sampleCases[0]?.id ?? '');
     setCustomInput('');
     setCustomInputError('');
+    setSubmissionID(null);
+    setSubmissionMode(false);
+    setSubmissionError('');
   }, [problemSlug, sampleCases]);
 
   useEffect(() => {
@@ -109,11 +121,6 @@ export default function ProblemWorkspace({
     dragging.current = true;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  };
-
-  const requireLogin = () => {
-    if (isAuthenticated) return;
-    navigate('/login', { state: { from: location } });
   };
 
   const handleRun = async () => {
@@ -154,14 +161,42 @@ export default function ProblemWorkspace({
     void handleRun();
   };
 
+  const handleSubmit = async () => {
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: location } });
+      return;
+    }
+    if (!languageKey || !sourceCode.trim()) return;
+
+    setSubmissionMode(true);
+    setSubmissionError('');
+    setSubmissionID(null);
+    setResultTab('result');
+    if (isMobile) setMobileTab('result');
+
+    try {
+      const result = await createSubmission.mutateAsync({
+        slug: problemSlug,
+        languageKey,
+        sourceCode,
+      });
+      setSubmissionID(result.id);
+    } catch (err) {
+      setSubmissionError(err instanceof Error ? err.message : '提交请求失败');
+    }
+  };
+
   const runStatus = sampleRun.data?.status;
-  const isRunning = activeRunID != null && runStatus != null && !isTerminalRunStatus(runStatus);
+  const isRunning = createRun.isPending || (activeRunID != null && (!runStatus || !isTerminalRunStatus(runStatus)));
+  const submissionStatus = submissionQuery.data?.status;
+  const isSubmitting = createSubmission.isPending || (submissionID != null && (!submissionStatus || !isTerminalSubmissionStatus(submissionStatus)));
 
   const actionBar = (
     <ActionBar
       onRun={handleRun}
-      onSubmit={requireLogin}
+      onSubmit={handleSubmit}
       isRunning={isRunning}
+      isSubmitting={isSubmitting}
       isMockJudge={isMockJudge}
     />
   );
@@ -188,6 +223,14 @@ export default function ProblemWorkspace({
       run={sampleRun.data}
       runError={runError}
       onRetry={handleRetry}
+      hasSubmission={submissionMode}
+      submission={submissionQuery.data}
+      submissionError={submissionError || (submissionQuery.error instanceof Error ? submissionQuery.error.message : '')}
+      submissionPollTimedOut={submissionQuery.pollTimedOut}
+      onRefreshSubmission={() => void submissionQuery.refresh()}
+      onRetrySubmission={() => void handleSubmit()}
+      timeLimitMs={timeLimitMs}
+      memoryLimitKb={memoryLimitKb}
       isMockJudge={isMockJudge}
     />
   );
@@ -250,10 +293,11 @@ export default function ProblemWorkspace({
   );
 }
 
-function ActionBar({ onRun, onSubmit, isRunning, isMockJudge }: {
+function ActionBar({ onRun, onSubmit, isRunning, isSubmitting, isMockJudge }: {
   onRun: () => void;
   onSubmit: () => void;
   isRunning: boolean;
+  isSubmitting: boolean;
   isMockJudge: boolean;
 }) {
   return (
@@ -263,12 +307,13 @@ function ActionBar({ onRun, onSubmit, isRunning, isMockJudge }: {
           <Zap aria-hidden="true" size={12} />Mock Judge
         </span>
       )}
-      <button className="secondary-button gap-2" onClick={onRun} disabled={isRunning}>
+      <button className="secondary-button gap-2 disabled:cursor-not-allowed disabled:opacity-60" onClick={onRun} disabled={isRunning || isSubmitting}>
         {isRunning ? <Loader2 aria-hidden="true" size={15} className="animate-spin" /> : <Play aria-hidden="true" size={15} />}
         {isRunning ? '运行中…' : '运行样例'}
       </button>
-      <button className="primary-button gap-2" onClick={onSubmit}>
-        <Send aria-hidden="true" size={15} />正式提交
+      <button className="primary-button gap-2 disabled:cursor-not-allowed disabled:opacity-60" onClick={onSubmit} disabled={isRunning || isSubmitting}>
+        {isSubmitting ? <Loader2 aria-hidden="true" size={15} className="animate-spin" /> : <Send aria-hidden="true" size={15} />}
+        {isSubmitting ? '判题中…' : '正式提交'}
       </button>
     </div>
   );
@@ -288,6 +333,14 @@ function ResultPanel({
   run,
   runError,
   onRetry,
+  hasSubmission,
+  submission,
+  submissionError,
+  submissionPollTimedOut,
+  onRefreshSubmission,
+  onRetrySubmission,
+  timeLimitMs,
+  memoryLimitKb,
   isMockJudge,
 }: {
   activeTab: ResultTab;
@@ -303,6 +356,14 @@ function ResultPanel({
   run: import('@/features/problems/lib/problems-api').SampleRunResponse | undefined;
   runError: string;
   onRetry: () => void;
+  hasSubmission: boolean;
+  submission: import('@/features/problems/lib/problems-api').SubmissionDetail | undefined;
+  submissionError: string;
+  submissionPollTimedOut: boolean;
+  onRefreshSubmission: () => void;
+  onRetrySubmission: () => void;
+  timeLimitMs?: number;
+  memoryLimitKb?: number;
   isMockJudge: boolean;
 }) {
   return (
@@ -326,12 +387,23 @@ function ResultPanel({
           />
         )}
         {activeTab === 'output' && (
-          run?.output_data != null && run.output_data !== ''
-            ? <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6 text-neutral-200">{run.output_data}</pre>
-            : <p className="text-neutral-500">程序输出将在样例运行后显示。</p>
+          run?.output_data
+            ? <pre className="max-h-[200px] overflow-auto whitespace-pre-wrap break-words font-mono text-sm leading-6 text-neutral-200">{run.output_data}</pre>
+            : <p className="text-neutral-500">样例或自测输出将在运行后显示。</p>
         )}
         {activeTab === 'result' && (
-          <ResultStatus run={run} runError={runError} onRetry={onRetry} isMockJudge={isMockJudge} />
+          hasSubmission
+            ? <SubmissionResultStatus
+                submission={submission}
+                submissionError={submissionError}
+                pollTimedOut={submissionPollTimedOut}
+                onRefresh={onRefreshSubmission}
+                onRetry={onRetrySubmission}
+                timeLimitMs={timeLimitMs}
+                memoryLimitKb={memoryLimitKb}
+                isMockJudge={isMockJudge}
+              />
+            : <ResultStatus run={run} runError={runError} onRetry={onRetry} isMockJudge={isMockJudge} />
         )}
       </div>
     </section>
@@ -485,6 +557,190 @@ function ResultStatus({
       )}
     </div>
   );
+}
+
+const submissionStatusConfig: Record<SubmissionStatus, { label: string; color: string; icon: 'clock' | 'active' | 'success' | 'failure' }> = {
+  QUEUED: { label: '等待判题', color: 'text-neutral-300', icon: 'clock' },
+  COMPILING: { label: '正在编译', color: 'text-blue-400', icon: 'active' },
+  RUNNING: { label: '正在运行', color: 'text-blue-400', icon: 'active' },
+  AC: { label: '答案正确', color: 'text-green-400', icon: 'success' },
+  WA: { label: '答案错误', color: 'text-red-400', icon: 'failure' },
+  TLE: { label: '时间超限', color: 'text-red-400', icon: 'failure' },
+  MLE: { label: '内存超限', color: 'text-red-400', icon: 'failure' },
+  RE: { label: '运行错误', color: 'text-red-400', icon: 'failure' },
+  CE: { label: '编译错误', color: 'text-red-400', icon: 'failure' },
+  SYSTEM_ERROR: { label: '系统判题失败', color: 'text-red-400', icon: 'failure' },
+};
+
+function SubmissionResultStatus({
+  submission,
+  submissionError,
+  pollTimedOut,
+  onRefresh,
+  onRetry,
+  timeLimitMs,
+  memoryLimitKb,
+  isMockJudge,
+}: {
+  submission: SubmissionDetail | undefined;
+  submissionError: string;
+  pollTimedOut: boolean;
+  onRefresh: () => void;
+  onRetry: () => void;
+  timeLimitMs?: number;
+  memoryLimitKb?: number;
+  isMockJudge: boolean;
+}) {
+  if (submissionError && !submission) {
+    return (
+      <div className="space-y-2" role="alert">
+        <p className="text-red-400">提交失败：{submissionError}</p>
+        <button className="secondary-button gap-1.5 text-xs" onClick={onRetry}>
+          <RefreshCw aria-hidden="true" size={12} />重新提交
+        </button>
+      </div>
+    );
+  }
+
+  if (!submission) {
+    return (
+      <div className="flex items-center gap-2" role="status">
+        <Loader2 aria-hidden="true" size={16} className="animate-spin text-blue-400" />
+        <span className="text-sm text-blue-400">正在创建提交…</span>
+      </div>
+    );
+  }
+
+  const config = submissionStatusConfig[submission.status];
+  const isTerminal = isTerminalSubmissionStatus(submission.status);
+  const firstFailedCase = submission.case_results.find((result) => result.status !== 'AC');
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2" role="status">
+        <SubmissionStatusIcon icon={config.icon} color={config.color} />
+        <span className={`text-sm font-semibold ${config.color}`}>{config.label}</span>
+        {isMockJudge && (
+          <span className="rounded bg-amber-900/40 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">Mock</span>
+        )}
+      </div>
+
+      {submission.status === 'QUEUED' && (
+        <p className="text-xs text-neutral-400">提交已入队，正在等待可用的判题 Worker。</p>
+      )}
+      {submission.status === 'RUNNING' && (
+        <p className="text-xs text-neutral-300">
+          当前进度：{submission.passed_cases}/{submission.total_cases || '—'} 个测试点
+        </p>
+      )}
+      {isTerminal && submission.total_cases > 0 && (
+        <p className="text-xs text-neutral-300">
+          通过 {submission.passed_cases}/{submission.total_cases} 个测试点
+          {submission.time_ms != null && ` · 总耗时 ${submission.time_ms} ms`}
+          {submission.memory_kb != null && ` · 峰值内存 ${formatMemory(submission.memory_kb)}`}
+        </p>
+      )}
+
+      {submission.status === 'WA' && firstFailedCase && (
+        <p className="text-xs text-red-300">
+          首个未通过测试点：#{firstFailedCase.case_index + 1}。隐藏测试输入与输出不会公开。
+        </p>
+      )}
+      {submission.status === 'TLE' && (
+        <p className="text-xs text-red-300">
+          程序超过时间限制{timeLimitMs != null ? ` ${timeLimitMs} ms` : ''}
+          {submission.time_ms != null ? `，本次累计耗时 ${submission.time_ms} ms。` : '。'}
+        </p>
+      )}
+      {submission.status === 'MLE' && (
+        <p className="text-xs text-red-300">
+          程序超过内存限制{memoryLimitKb != null ? ` ${formatMemory(memoryLimitKb)}` : ''}
+          {submission.memory_kb != null ? `，本次峰值 ${formatMemory(submission.memory_kb)}。` : '。'}
+        </p>
+      )}
+      {submission.status === 'RE' && !submission.error_message && (
+        <p className="text-xs text-red-300">程序运行时异常；错误信息中的宿主机路径已清理。</p>
+      )}
+      {submission.status === 'SYSTEM_ERROR' && (
+        <p className="text-xs text-red-300">系统判题失败，可重新提交。此次系统错误不代表代码答案错误。</p>
+      )}
+
+      {submission.compiler_output && (
+        <CopyableOutput label="编译输出" value={submission.compiler_output} />
+      )}
+      {submission.error_message && (
+        <CopyableOutput label="错误信息" value={submission.error_message} />
+      )}
+
+      {submissionError && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-red-300" role="alert">
+          <span>刷新判题状态失败：{submissionError}</span>
+          <button className="secondary-button gap-1.5 text-xs" onClick={onRefresh}>
+            <RefreshCw aria-hidden="true" size={12} />重试刷新
+          </button>
+        </div>
+      )}
+      {pollTimedOut && !isTerminal && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-300" role="alert">
+          <span>已等待 60 秒，自动刷新已停止。</span>
+          <button className="secondary-button gap-1.5 text-xs" onClick={onRefresh}>
+            <RefreshCw aria-hidden="true" size={12} />刷新状态
+          </button>
+        </div>
+      )}
+
+      {isTerminal && (
+        <button className="secondary-button gap-1.5 text-xs" onClick={onRetry}>
+          <RefreshCw aria-hidden="true" size={12} />再次提交
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SubmissionStatusIcon({ icon, color }: { icon: 'clock' | 'active' | 'success' | 'failure'; color: string }) {
+  const className = icon === 'active' ? `animate-spin ${color}` : color;
+  if (icon === 'clock') return <Clock3 aria-hidden="true" size={17} className={className} />;
+  if (icon === 'active') return <Loader2 aria-hidden="true" size={17} className={className} />;
+  if (icon === 'success') return <CheckCircle2 aria-hidden="true" size={17} className={className} />;
+  return <XCircle aria-hidden="true" size={17} className={className} />;
+}
+
+function CopyableOutput({ label, value }: { label: string; value: string }) {
+  const [copyMessage, setCopyMessage] = useState('');
+  const truncated = value.includes('[truncated]');
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyMessage('已复制');
+    } catch {
+      setCopyMessage('复制失败，请手动选择文本');
+    }
+  };
+
+  return (
+    <section className="overflow-hidden rounded border border-[var(--editor-border)] bg-black/20">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--editor-border)] px-3 py-2">
+        <span className="text-xs font-medium text-neutral-300">
+          {label}{truncated ? '（已截断至 8KB）' : ''}
+        </span>
+        <div className="flex items-center gap-2">
+          {copyMessage && <span className="text-[10px] text-neutral-400">{copyMessage}</span>}
+          <button className="inline-flex items-center gap-1 text-xs text-neutral-300 hover:text-white" onClick={copy}>
+            <Copy aria-hidden="true" size={12} />复制
+          </button>
+        </div>
+      </div>
+      <pre className="max-h-[160px] overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-xs leading-5 text-red-300">
+        {value}
+      </pre>
+    </section>
+  );
+}
+
+function formatMemory(memoryKb: number) {
+  return `${Math.max(0, memoryKb / 1024).toFixed(memoryKb % 1024 === 0 ? 0 : 1)} MB`;
 }
 
 function MobileTabButton({ active, onClick, children }: TabButtonProps) {

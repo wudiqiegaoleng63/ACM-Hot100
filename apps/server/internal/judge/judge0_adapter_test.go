@@ -29,6 +29,21 @@ func TestMapJudge0StatusMapsAllKnownStatuses(t *testing.T) {
 	}
 }
 
+func TestFakeRuntimeAndSystemErrorsExposeOnlySanitizedSummaries(t *testing.T) {
+	runtimeResult := FakeREResult(3, 1)
+	if runtimeResult.ErrorMessage != "Runtime Error (SIGSEGV)" {
+		t.Fatalf("runtime error message = %q", runtimeResult.ErrorMessage)
+	}
+
+	systemResult := FakeSystemErrorResult("failed at /home/judge/private/main.cpp")
+	if systemResult.ErrorMessage == "failed at /home/judge/private/main.cpp" {
+		t.Fatal("system error must not preserve the host path")
+	}
+	if systemResult.CaseResults[0].ActualOutput != "" {
+		t.Fatal("system error details must not be stored as hidden-case output")
+	}
+}
+
 func TestParseTimeMs(t *testing.T) {
 	cases := []struct {
 		input string

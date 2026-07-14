@@ -36,9 +36,11 @@ export const healthKeys = {
 
 export const submissionKeys = {
   all: ['submissions'] as const,
+  lists: ['submissions', 'list'] as const,
   list: (params?: unknown) =>
-    ['submissions', params] as const,
-  detail: (id: string) => ['submissions', id] as const,
+    ['submissions', 'list', params] as const,
+  details: ['submissions', 'detail'] as const,
+  detail: (id: string) => ['submissions', 'detail', id] as const,
 };
 
 export const progressKeys = {

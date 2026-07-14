@@ -36,12 +36,12 @@ func FakeACResult(totalCases int) *JudgeResult {
 		cases[i] = Verdict{Status: "AC", TimeMs: 10, MemoryKb: 1024}
 	}
 	return &JudgeResult{
-		Status:        "AC",
-		PassedCases:   totalCases,
-		TotalCases:    totalCases,
-		TotalTimeMs:   totalCases * 10,
+		Status:       "AC",
+		PassedCases:  totalCases,
+		TotalCases:   totalCases,
+		TotalTimeMs:  totalCases * 10,
 		PeakMemoryKb: 1024,
-		CaseResults:   cases,
+		CaseResults:  cases,
 	}
 }
 
@@ -139,6 +139,7 @@ func FakeREResult(totalCases, failIndex int) *JudgeResult {
 		TotalCases:   totalCases,
 		TotalTimeMs:  failIndex*10 + 10,
 		PeakMemoryKb: 1024,
+		ErrorMessage: "Runtime Error (SIGSEGV)",
 		CaseResults:  cases,
 	}
 }
@@ -146,9 +147,10 @@ func FakeREResult(totalCases, failIndex int) *JudgeResult {
 // FakeSystemErrorResult returns a mock SYSTEM_ERROR result.
 func FakeSystemErrorResult(message string) *JudgeResult {
 	return &JudgeResult{
-		Status: "SYSTEM_ERROR",
+		Status:       "SYSTEM_ERROR",
+		ErrorMessage: TruncateOutput(SanitizePath(message)),
 		CaseResults: []Verdict{
-			{Status: "SYSTEM_ERROR", ActualOutput: message},
+			{Status: "SYSTEM_ERROR"},
 		},
 	}
 }

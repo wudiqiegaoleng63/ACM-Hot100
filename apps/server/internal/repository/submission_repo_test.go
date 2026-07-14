@@ -3,6 +3,7 @@ package repository
 import (
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/acmhot100/server/internal/model"
@@ -58,6 +59,23 @@ func TestCreateSubmissionIncrementsExistingProgress(t *testing.T) {
 	}
 	if err := CreateSubmission(db, submission); err != nil {
 		t.Fatalf("CreateSubmission: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
+func TestWriteSubmissionResultPersistsSanitizedErrorMessage(t *testing.T) {
+	db, mock := repositoryTestDB(t)
+	judgedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE `submissions` SET .*`error_message`").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if err := WriteSubmissionResult(db, "sub-3", model.SubmissionStatusRuntimeError, 1, 3, 20, 2048, "", "Runtime Error at [path]", judgedAt); err != nil {
+		t.Fatalf("WriteSubmissionResult: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet SQL expectations: %v", err)

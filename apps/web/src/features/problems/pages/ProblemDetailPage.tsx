@@ -56,6 +56,8 @@ export default function ProblemDetailPage() {
       sampleCases={problem.data!.sample_cases}
       languageKey={editorState.languageKey}
       sourceCode={editorState.sourceCode}
+      timeLimitMs={problem.data!.time_limit_ms}
+      memoryLimitKb={problem.data!.memory_limit_kb}
     />
   );
 }
