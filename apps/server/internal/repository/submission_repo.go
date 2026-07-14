@@ -91,3 +91,25 @@ func GetSubmissionForUser(db *gorm.DB, submissionID, userID string) (*model.Subm
 	}
 	return &submission, nil
 }
+
+// MarkSubmissionEnqueued stores queue metadata after XADD succeeds.
+func MarkSubmissionEnqueued(db *gorm.DB, submissionID, messageID string, enqueuedAt time.Time) error {
+	return db.Model(&model.Submission{}).
+		Where("id = ? AND status = ?", submissionID, model.SubmissionStatusQueued).
+		Updates(map[string]interface{}{
+			"stream_message_id": messageID,
+			"enqueued_at":       enqueuedAt,
+		}).Error
+}
+
+// FindUnenqueuedSubmissions returns QUEUED submissions missing enqueued_at for reconciliation.
+func FindUnenqueuedSubmissions(db *gorm.DB, limit int) ([]model.Submission, error) {
+	var submissions []model.Submission
+	if err := db.Where("status = ? AND enqueued_at IS NULL", model.SubmissionStatusQueued).
+		Order("created_at ASC").
+		Limit(limit).
+		Find(&submissions).Error; err != nil {
+		return nil, err
+	}
+	return submissions, nil
+}

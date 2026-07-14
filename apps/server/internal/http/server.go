@@ -54,7 +54,7 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 			problems.GET("/:slug", getProblem(db))
 			problems.GET("/:slug/navigation", getProblemNavigation(db))
 			problems.POST("/:slug/run", RequireAuth(cfg, rdb), createSampleRun(db, rdb))
-			problems.POST("/:slug/submissions", RequireAuth(cfg, rdb), createSubmission(db))
+			problems.POST("/:slug/submissions", RequireAuth(cfg, rdb), createSubmission(db, rdb))
 
 			// Draft routes (require auth)
 			drafts := problems.Group("/:slug/drafts")

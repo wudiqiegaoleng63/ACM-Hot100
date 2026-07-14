@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/acmhot100/server/internal/model"
+	"github.com/acmhot100/server/internal/queue"
 	"github.com/acmhot100/server/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -66,7 +68,7 @@ type submissionListResponse struct {
 }
 
 // createSubmission handles POST /api/v1/problems/:slug/submissions
-func createSubmission(db *gorm.DB) gin.HandlerFunc {
+func createSubmission(db *gorm.DB, rdb *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := getUserID(c)
 		if userID == "" {
@@ -121,6 +123,16 @@ func createSubmission(db *gorm.DB) gin.HandlerFunc {
 		if err := repository.CreateSubmission(db, submission); err != nil {
 			apiError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to create submission")
 			return
+		}
+
+		// Enqueue to Redis Stream — failure does NOT delete the MySQL submission.
+		// Reconciliation will pick up un-enqueued submissions later.
+		if rdb != nil {
+			messageID, err := queue.EnqueueSubmission(c.Request.Context(), rdb, submission.ID)
+			if err == nil {
+				enqueuedAt := time.Now().UTC()
+				_ = repository.MarkSubmissionEnqueued(db, submission.ID, messageID, enqueuedAt)
+			}
 		}
 
 		c.JSON(http.StatusAccepted, gin.H{

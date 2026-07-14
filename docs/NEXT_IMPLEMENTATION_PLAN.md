@@ -332,7 +332,7 @@ Phase 2 验收：刷新后草稿不丢；三种语言可切换；样例运行完
 
 建议提交信息：`feat: 添加正式提交 API`
 
-### [ ] P3-02 · Redis 提交入队与 Reconciliation
+### [x] P3-02 · Redis 提交入队与 Reconciliation
 
 - MySQL 提交成功后 `XADD judge:submissions submission_id=...`。
 - XADD 成功后回写 `stream_message_id/enqueued_at`。

@@ -78,7 +78,7 @@ func authenticatedSubmissionRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 		c.Set("userID", "user-1")
 		c.Set("request_id", "request-submission")
 	})
-	router.POST("/api/v1/problems/:slug/submissions", createSubmission(db))
+	router.POST("/api/v1/problems/:slug/submissions", createSubmission(db, rdb))
 	return router
 }
 
