@@ -26,14 +26,12 @@ func CORSConfig(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
-		allowedOrigins := []string{
-			"http://localhost:5173",
-			"http://127.0.0.1:5173",
-		}
-
-		// In development, also allow the configured base URL
+		allowedOrigins := []string{cfg.AppBaseURL}
 		if cfg.IsDevelopment() {
-			allowedOrigins = append(allowedOrigins, cfg.AppBaseURL)
+			allowedOrigins = append(allowedOrigins,
+				"http://localhost:5173",
+				"http://127.0.0.1:5173",
+			)
 		}
 
 		isAllowed := false
@@ -63,8 +61,37 @@ func CORSConfig(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// For non-preflight requests with disallowed origin, just continue
-		// The browser will block the response if origin doesn't match
+		c.Next()
+	}
+}
+
+// RequireTrustedOrigin rejects cross-site state-changing requests authenticated by cookies.
+func RequireTrustedOrigin(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead || c.Request.Method == http.MethodOptions {
+			c.Next()
+			return
+		}
+		origin := c.GetHeader("Origin")
+		if origin == "" || origin != cfg.AppBaseURL {
+			apiError(c, http.StatusForbidden, "INVALID_ORIGIN", "request origin is not allowed")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// SecurityHeaders applies browser hardening headers to API responses.
+func SecurityHeaders(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		if cfg.AppEnv == "production" {
+			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
 		c.Next()
 	}
 }

@@ -163,7 +163,7 @@ func (a *Judge0Adapter) Judge(ctx context.Context, submissionID string) (*JudgeR
 			ExpectedOutput: tc.ExpectedOutput,
 			CPUTimeLimit:   float64(problem.TimeLimitMs) / 1000.0,
 			MemoryLimit:    problem.MemoryLimitKb,
-			MaxFileSize:    8 * 1024, // 8KB max output
+			MaxFileSize:    8, // Judge0 uses KB; persisted output is capped at 8KB
 		}
 
 		result, err := a.submitAndWait(ctx, req)

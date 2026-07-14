@@ -2,7 +2,7 @@ import 'katex/dist/katex.min.css';
 
 import { Clock3, Database } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import { useLocation, useParams } from 'react-router';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
@@ -135,10 +135,29 @@ function ProblemStatement({ data }: { data: ProblemDetail }) {
 
 function Markdown({ children }: { children: string }) {
   return (
-    <ReactMarkdown skipHtml remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+    <ReactMarkdown
+      skipHtml
+      urlTransform={safeMarkdownURL}
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+    >
       {children}
     </ReactMarkdown>
   );
+}
+
+function safeMarkdownURL(url: string) {
+  const transformed = defaultUrlTransform(url);
+  if (!transformed) return '';
+  if (transformed.startsWith('/') || transformed.startsWith('#')) return transformed;
+  try {
+    const parsed = new URL(transformed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'mailto:'
+      ? transformed
+      : '';
+  } catch {
+    return '';
+  }
 }
 
 function MarkdownSection({ title, content }: { title: string; content: string }) {

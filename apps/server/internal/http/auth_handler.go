@@ -70,14 +70,24 @@ func errorResponse(c *gin.Context, statusCode int, code string, message string) 
 }
 
 // setAuthCookies sets HttpOnly SameSite=Lax cookies for access and refresh tokens.
-func setAuthCookies(c *gin.Context, accessToken, refreshToken string) {
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+func setAuthCookies(c *gin.Context, cfg *config.Config, accessToken, refreshToken string) {
+	secure := requestIsSecure(c, cfg)
 	accessTTL := 15 * time.Minute
 	refreshTTL := 7 * 24 * time.Hour
 
 	accessCookie := buildCookieHeader("access_token", accessToken, accessTTL, secure)
 	refreshCookie := buildCookieHeader("refresh_token", refreshToken, refreshTTL, secure)
 	c.Writer.Header()["Set-Cookie"] = []string{accessCookie, refreshCookie}
+}
+
+func requestIsSecure(c *gin.Context, cfg *config.Config) bool {
+	if cfg.AppEnv == "production" || c.Request.TLS != nil {
+		return true
+	}
+	if len(cfg.TrustedProxies) == 0 {
+		return false
+	}
+	return c.GetHeader("X-Forwarded-Proto") == "https"
 }
 
 // buildCookieHeader builds a Set-Cookie header string with HttpOnly and SameSite=Lax.
@@ -92,8 +102,8 @@ func buildCookieHeader(name, value string, ttl time.Duration, secure bool) strin
 }
 
 // clearAuthCookies removes the auth cookies.
-func clearAuthCookies(c *gin.Context) {
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+func clearAuthCookies(c *gin.Context, cfg *config.Config) {
+	secure := requestIsSecure(c, cfg)
 	secureFlag := ""
 	if secure {
 		secureFlag = "; Secure"
@@ -208,7 +218,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	setAuthCookies(c, accessToken, refreshToken)
+	setAuthCookies(c, h.cfg, accessToken, refreshToken)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login successful",
@@ -226,7 +236,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	newAccessToken, newRefreshToken, err := service.RefreshToken(h.rdb, h.cfg, refreshTokenStr)
 	if err != nil {
 		if errors.Is(err, service.ErrTokenReuse) {
-			clearAuthCookies(c)
+			clearAuthCookies(c, h.cfg)
 			errorResponse(c, http.StatusUnauthorized, "TOKEN_REUSE", "Token reuse detected. All sessions have been revoked.")
 		} else if errors.Is(err, service.ErrTokenExpired) {
 			errorResponse(c, http.StatusUnauthorized, "TOKEN_EXPIRED", "Refresh token has expired")
@@ -236,7 +246,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	setAuthCookies(c, newAccessToken, newRefreshToken)
+	setAuthCookies(c, h.cfg, newAccessToken, newRefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Tokens refreshed successfully",
@@ -270,7 +280,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	_ = service.Logout(h.rdb, accessJTI, accessTTL, refreshJTI)
 
-	clearAuthCookies(c)
+	clearAuthCookies(c, h.cfg)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Logged out successfully",
@@ -290,7 +300,7 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 		return
 	}
 
-	clearAuthCookies(c)
+	clearAuthCookies(c, h.cfg)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "All sessions have been revoked",

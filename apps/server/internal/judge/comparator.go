@@ -2,6 +2,7 @@ package judge
 
 import (
 	"strings"
+	"unicode/utf8"
 )
 
 const maxOutputBytes = 8 * 1024
@@ -38,7 +39,12 @@ func TruncateOutput(output string) string {
 	if len(output) <= maxOutputBytes {
 		return output
 	}
-	return output[:maxOutputBytes] + "\n... [truncated]"
+	const marker = "\n... [truncated]"
+	limit := maxOutputBytes - len(marker)
+	for limit > 0 && !utf8.RuneStart(output[limit]) {
+		limit--
+	}
+	return output[:limit] + marker
 }
 
 // SanitizePath removes host filesystem paths from error output.

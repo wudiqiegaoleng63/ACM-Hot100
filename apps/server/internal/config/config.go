@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -11,9 +12,10 @@ import (
 // Config holds all application configuration loaded from environment variables.
 type Config struct {
 	// App
-	AppEnv     string
-	AppBaseURL string
-	APIAddr    string
+	AppEnv         string
+	AppBaseURL     string
+	APIAddr        string
+	TrustedProxies []string
 
 	// MySQL
 	MySQLDSN string
@@ -56,9 +58,10 @@ func Load() *Config {
 
 	cfg := &Config{
 		// App
-		AppEnv:     getEnv("APP_ENV", "development"),
-		AppBaseURL: getEnv("APP_BASE_URL", "http://localhost:3000"),
-		APIAddr:    getEnv("API_ADDR", ":8080"),
+		AppEnv:         getEnv("APP_ENV", "development"),
+		AppBaseURL:     getEnv("APP_BASE_URL", "http://localhost:3000"),
+		APIAddr:        getEnv("API_ADDR", ":8080"),
+		TrustedProxies: getEnvList("TRUSTED_PROXIES"),
 
 		// MySQL
 		MySQLDSN: getEnv("MYSQL_DSN", "root:password@tcp(127.0.0.1:3306)/acmhot100?charset=utf8mb4&parseTime=True&loc=UTC"),
@@ -121,4 +124,41 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func getEnvList(key string) []string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+// ValidateProduction rejects unsafe defaults in production.
+func (c *Config) ValidateProduction() error {
+	if c.AppEnv != "production" {
+		return nil
+	}
+	if c.JWTAccessSecret == "dev-access-secret-change-me" || c.JWTRefreshSecret == "dev-refresh-secret-change-me" ||
+		len(c.JWTAccessSecret) < 32 || len(c.JWTRefreshSecret) < 32 || c.JWTAccessSecret == c.JWTRefreshSecret {
+		return fmt.Errorf("production JWT secrets must be distinct and at least 32 bytes")
+	}
+	if c.RedisPassword == "" {
+		return fmt.Errorf("production Redis password is required")
+	}
+	lowerDSN := strings.ToLower(c.MySQLDSN)
+	if strings.HasPrefix(lowerDSN, "root:") || strings.HasPrefix(lowerDSN, "root@") {
+		return fmt.Errorf("production MySQL must not use the root account")
+	}
+	if !strings.HasPrefix(c.AppBaseURL, "https://") {
+		return fmt.Errorf("production APP_BASE_URL must use https")
+	}
+	return nil
 }

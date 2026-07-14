@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestCompareOutputMatchesIdenticalContent(t *testing.T) {
@@ -69,6 +70,20 @@ func TestTruncateOutputTruncatesLongOutput(t *testing.T) {
 	result := TruncateOutput(long)
 	if len(result) > maxOutputBytes+50 { // some slack for the marker
 		t.Fatalf("truncated output length = %d, should be near %d", len(result), maxOutputBytes)
+	}
+	if !strings.Contains(result, "[truncated]") {
+		t.Fatal("truncated output should contain marker")
+	}
+}
+
+func TestTruncateOutputPreservesUTF8AndEightKBContract(t *testing.T) {
+	input := strings.Repeat("a", maxOutputBytes-1) + "中"
+	result := TruncateOutput(input)
+	if !utf8.ValidString(result) {
+		t.Fatal("truncated output must remain valid UTF-8")
+	}
+	if len(result) > maxOutputBytes {
+		t.Fatalf("truncated output length = %d, want <= %d", len(result), maxOutputBytes)
 	}
 	if !strings.Contains(result, "[truncated]") {
 		t.Fatal("truncated output should contain marker")

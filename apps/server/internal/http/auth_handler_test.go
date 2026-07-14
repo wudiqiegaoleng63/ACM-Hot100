@@ -70,6 +70,24 @@ func TestRefreshTokenRequiresCookie(t *testing.T) {
 	}
 }
 
+func TestForwardedProtoRequiresConfiguredTrustedProxy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	request := httptest.NewRequest(http.MethodPost, "/", nil)
+	request.Header.Set("X-Forwarded-Proto", "https")
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = request
+
+	if requestIsSecure(context, &config.Config{AppEnv: "development"}) {
+		t.Fatal("untrusted forwarded proto must not enable Secure cookies")
+	}
+	if !requestIsSecure(context, &config.Config{AppEnv: "development", TrustedProxies: []string{"127.0.0.1"}}) {
+		t.Fatal("trusted proxy https header should enable Secure cookies")
+	}
+	if !requestIsSecure(context, &config.Config{AppEnv: "production"}) {
+		t.Fatal("production cookies must always be Secure")
+	}
+}
+
 func refreshHandlerTestConfig() *config.Config {
 	return &config.Config{
 		JWTIssuer:          "test-issuer",

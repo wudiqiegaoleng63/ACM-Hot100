@@ -20,7 +20,6 @@ import (
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func main() {
@@ -33,9 +32,13 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 
+	if err := cfg.ValidateProduction(); err != nil {
+		log.Fatalf("Unsafe production configuration: %v", err)
+	}
+
 	// Connect to MySQL
 	db, err := gorm.Open(mysql.Open(cfg.MySQLDSN), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: config.GORMLogger(cfg),
 	})
 	if err != nil {
 		log.Fatalf("Failed to connect to MySQL: %v", err)

@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/acmhot100/server/internal/config"
 	"github.com/gin-gonic/gin"
@@ -18,11 +19,16 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	}
 
 	r := gin.New()
+	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		panic("invalid trusted proxy configuration: " + err.Error())
+	}
 
 	// Global middleware
 	r.Use(gin.Recovery())
 	r.Use(RequestID())
+	r.Use(SecurityHeaders(cfg))
 	r.Use(CORSConfig(cfg))
+	r.Use(RequireTrustedOrigin(cfg))
 
 	// Health check (exposes judge_mode so frontend can show Mock Judge badge)
 	r.GET("/api/v1/health", healthCheck(db, rdb, cfg))
@@ -34,14 +40,14 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 		authHandler := NewAuthHandler(db, rdb, cfg)
 		authGroup := v1.Group("/auth")
 		{
-			authGroup.POST("/register", authHandler.Register)
+			authGroup.POST("/register", RateLimit(rdb, "auth:register", 5, time.Minute), authHandler.Register)
 			authGroup.POST("/verify-email", authHandler.VerifyEmail)
-			authGroup.POST("/resend-verification", authHandler.ResendVerification)
-			authGroup.POST("/login", authHandler.Login)
-			authGroup.POST("/refresh", authHandler.RefreshToken)
+			authGroup.POST("/resend-verification", RateLimit(rdb, "auth:resend", 3, time.Minute), authHandler.ResendVerification)
+			authGroup.POST("/login", RateLimit(rdb, "auth:login", 10, time.Minute), authHandler.Login)
+			authGroup.POST("/refresh", RateLimit(rdb, "auth:refresh", 30, time.Minute), authHandler.RefreshToken)
 			authGroup.POST("/logout", authHandler.Logout)
 			authGroup.POST("/logout-all", RequireAuth(cfg, rdb), authHandler.LogoutAll)
-			authGroup.POST("/forgot-password", authHandler.ForgotPassword)
+			authGroup.POST("/forgot-password", RateLimit(rdb, "auth:forgot", 5, time.Minute), authHandler.ForgotPassword)
 			authGroup.POST("/reset-password", authHandler.ResetPassword)
 			authGroup.GET("/me", RequireAuth(cfg, rdb), authHandler.GetCurrentUser)
 		}
@@ -53,8 +59,8 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 			problems.GET("", listProblems(db))
 			problems.GET("/:slug", getProblem(db))
 			problems.GET("/:slug/navigation", getProblemNavigation(db))
-			problems.POST("/:slug/run", RequireAuth(cfg, rdb), createSampleRun(db, rdb))
-			problems.POST("/:slug/submissions", RequireAuth(cfg, rdb), createSubmission(db, rdb))
+			problems.POST("/:slug/run", RequireAuth(cfg, rdb), RateLimit(rdb, "judge:run", 30, time.Minute), createSampleRun(db, rdb))
+			problems.POST("/:slug/submissions", RequireAuth(cfg, rdb), RateLimit(rdb, "judge:submission", 20, time.Minute), createSubmission(db, rdb))
 
 			// Draft routes (require auth)
 			drafts := problems.Group("/:slug/drafts")

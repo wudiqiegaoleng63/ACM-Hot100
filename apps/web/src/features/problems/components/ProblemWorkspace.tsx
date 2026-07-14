@@ -133,6 +133,9 @@ export default function ProblemWorkspace({
 
     setRunError('');
     setActiveRunID(null);
+    setSubmissionMode(false);
+    setSubmissionID(null);
+    setSubmissionError('');
 
     if (inputMode === 'custom') {
       const byteLength = new TextEncoder().encode(customInput).byteLength;
@@ -692,7 +695,7 @@ function SubmissionResultStatus({
       {submission.compiler_output && (
         <CopyableOutput label="编译输出" value={submission.compiler_output} />
       )}
-      {submission.error_message && (
+      {(submission.status === 'CE' || submission.status === 'RE') && submission.error_message && (
         <CopyableOutput label="错误信息" value={submission.error_message} />
       )}
 
@@ -750,8 +753,12 @@ function CopyableOutput({ label, value }: { label: string; value: string }) {
           {label}{truncated ? '（已截断至 8KB）' : ''}
         </span>
         <div className="flex items-center gap-2">
-          {copyMessage && <span className="text-[10px] text-neutral-400">{copyMessage}</span>}
-          <button className="inline-flex items-center gap-1 text-xs text-neutral-300 hover:text-white" onClick={copy}>
+          {copyMessage && <span className="text-[10px] text-neutral-400" role="status">{copyMessage}</span>}
+          <button
+            aria-label={`复制${label}`}
+            className="inline-flex items-center gap-1 text-xs text-neutral-300 hover:text-white"
+            onClick={copy}
+          >
             <Copy aria-hidden="true" size={12} />复制
           </button>
         </div>

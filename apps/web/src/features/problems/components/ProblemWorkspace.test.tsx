@@ -221,10 +221,21 @@ describe('ProblemWorkspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '正式提交' }));
     await waitFor(() => expect(screen.getByText('编译输出（已截断至 8KB）')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: '复制' }));
+    fireEvent.click(screen.getByRole('button', { name: '复制编译输出' }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("main.cpp:1: error\n... [truncated]"));
     expect(screen.getByText('已复制')).toBeInTheDocument();
+  });
+
+  it('shows a new sample result instead of a previous formal verdict', async () => {
+    vi.stubGlobal('fetch', submissionFetch([submissionPayload('AC')]));
+    renderWorkspace();
+
+    fireEvent.click(screen.getByRole('button', { name: '正式提交' }));
+    await waitFor(() => expect(screen.getByText('答案正确')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: '运行样例' }));
+    expect(screen.queryByText('答案正确')).not.toBeInTheDocument();
   });
 
   it('shows sample case selector and custom input toggle in input tab', () => {
