@@ -352,7 +352,7 @@ Phase 2 验收：刷新后草稿不丢；三种语言可切换；样例运行完
 
 建议提交信息：`feat: 添加判题适配接口和结果比较器`
 
-### [ ] P3-04 · Worker 消费、幂等与崩溃恢复
+### [x] P3-04 · Worker 消费、幂等与崩溃恢复
 
 - XREADGROUP 消费 `judge:submissions`。
 - Redis Lock + MySQL 行锁确认 QUEUED 后进入 COMPILING。

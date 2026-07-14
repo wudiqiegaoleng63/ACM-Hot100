@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/acmhot100/server/internal/model"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -51,7 +52,6 @@ func ListSubmissions(db *gorm.DB, userID string, problemSlug, status, languageKe
 		var problem model.Problem
 		if err := db.Where("slug = ?", problemSlug).Select("id").First(&problem).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				// No matching problem means no submissions
 				return nil, 0, nil
 			}
 			return nil, 0, err
@@ -112,4 +112,132 @@ func FindUnenqueuedSubmissions(db *gorm.DB, limit int) ([]model.Submission, erro
 		return nil, err
 	}
 	return submissions, nil
+}
+
+// ClaimQueuedSubmission atomically moves a submission from QUEUED to the given status.
+func ClaimQueuedSubmission(db *gorm.DB, submissionID, nextStatus string, claimedAt time.Time) (bool, error) {
+	result := db.Model(&model.Submission{}).
+		Where("id = ? AND status = ?", submissionID, model.SubmissionStatusQueued).
+		Updates(map[string]interface{}{
+			"status":     nextStatus,
+			"claimed_at": claimedAt,
+		})
+	return result.RowsAffected == 1, result.Error
+}
+
+// GetSubmissionByID returns a submission by ID for worker-side state inspection.
+func GetSubmissionByID(db *gorm.DB, submissionID string) (*model.Submission, error) {
+	var submission model.Submission
+	if err := db.Where("id = ?", submissionID).First(&submission).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &submission, nil
+}
+
+// WriteSubmissionResult updates the submission row with the final judge result fields.
+func WriteSubmissionResult(db *gorm.DB, submissionID, status string, passedCases, totalCases, totalTimeMs, peakMemoryKb int, compilerOutput string, judgedAt time.Time) error {
+	return db.Model(&model.Submission{}).
+		Where("id = ? AND status IN ?", submissionID, []string{model.SubmissionStatusCompiling, model.SubmissionStatusRunning}).
+		Updates(map[string]interface{}{
+			"status":          status,
+			"passed_cases":    passedCases,
+			"total_cases":     totalCases,
+			"time_ms":         totalTimeMs,
+			"memory_kb":       peakMemoryKb,
+			"compiler_output": compilerOutput,
+			"judged_at":       judgedAt,
+		}).Error
+}
+
+// CaseResultInput is a plain data struct for writing case results without importing judge.
+type CaseResultInput struct {
+	CaseIndex    int
+	Status       string
+	TimeMs       *int
+	MemoryKb     *int
+	ActualOutput string
+	IsSample     bool
+}
+
+// WriteCaseResults creates case result rows for a submission.
+func WriteCaseResults(db *gorm.DB, submissionID string, caseResults []CaseResultInput) error {
+	for _, cr := range caseResults {
+		caseResult := &model.SubmissionCaseResult{
+			ID:           uuid.New().String(),
+			SubmissionID: submissionID,
+			CaseIndex:    cr.CaseIndex,
+			Status:       cr.Status,
+			TimeMs:       cr.TimeMs,
+			MemoryKb:     cr.MemoryKb,
+			ActualOutput: cr.ActualOutput,
+			IsSample:     cr.IsSample,
+		}
+		if err := db.Create(caseResult).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SetProgressSolved sets the user's progress to SOLVED (never downgrades).
+func SetProgressSolved(db *gorm.DB, userID, problemID string, firstACAt time.Time) error {
+	result := db.Model(&model.UserProblemProgress{}).
+		Where("user_id = ? AND problem_id = ? AND state != ?", userID, problemID, model.ProgressSolved).
+		Updates(map[string]interface{}{
+			"state":       model.ProgressSolved,
+			"first_ac_at": firstACAt,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		progress, err := GetProgress(db, userID, problemID)
+		if err != nil {
+			return err
+		}
+		if progress != nil && progress.State == model.ProgressSolved {
+			return nil
+		}
+		progress = &model.UserProblemProgress{
+			UserID:    userID,
+			ProblemID: problemID,
+			State:     model.ProgressSolved,
+			FirstACAt: &firstACAt,
+		}
+		return db.Create(progress).Error
+	}
+	return nil
+}
+
+// SetProgressAttemptedIfNotStarted sets progress to ATTEMPTED only if currently NOT_STARTED.
+func SetProgressAttemptedIfNotStarted(db *gorm.DB, userID, problemID string) {
+	db.Model(&model.UserProblemProgress{}).
+		Where("user_id = ? AND problem_id = ? AND state = ?", userID, problemID, model.ProgressNotStarted).
+		Update("state", model.ProgressAttempted)
+}
+
+// MarkSubmissionSystemError sets a submission to SYSTEM_ERROR state.
+func MarkSubmissionSystemError(db *gorm.DB, submissionID, message string, judgedAt time.Time) error {
+	return db.Model(&model.Submission{}).
+		Where("id = ? AND status NOT IN ?", submissionID, []string{
+			model.SubmissionStatusAccepted, model.SubmissionStatusWrongAnswer,
+			model.SubmissionStatusTimeLimit, model.SubmissionStatusMemoryLimit,
+			model.SubmissionStatusRuntimeError, model.SubmissionStatusCompileError,
+			model.SubmissionStatusSystemError,
+		}).
+		Updates(map[string]interface{}{
+			"status":        model.SubmissionStatusSystemError,
+			"error_message": message,
+			"judged_at":     judgedAt,
+		}).Error
+}
+
+// IncrementSubmissionRetryCount atomically increments the retry count.
+func IncrementSubmissionRetryCount(db *gorm.DB, submissionID string) error {
+	return db.Model(&model.Submission{}).
+		Where("id = ?", submissionID).
+		Update("retry_count", gorm.Expr("retry_count + 1")).Error
 }
