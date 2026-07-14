@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/acmhot100/server/internal/config"
 	"github.com/acmhot100/server/internal/judge"
@@ -72,8 +73,16 @@ func main() {
 	case "mock":
 		adapter = judge.NewFakeAdapter(judge.FakeACResult(1))
 		log.Println("Judge adapter: mock (always AC)")
+	case "judge0":
+		judge0Adapter := judge.NewJudge0Adapter(db, judge.Judge0AdapterConfig{
+			BaseURL:        cfg.Judge0BaseURL,
+			ConnectTimeout: 5 * time.Second,
+			TotalTimeout:   60 * time.Second,
+		})
+		adapter = judge0Adapter
+		log.Printf("Judge adapter: Judge0 (%s)", cfg.Judge0BaseURL)
 	default:
-		log.Fatalf("Unsupported JUDGE_MODE %q: only 'mock' is currently supported", cfg.JudgeMode)
+		log.Fatalf("Unsupported JUDGE_MODE %q: only 'mock' and 'judge0' are supported", cfg.JudgeMode)
 	}
 
 	// Initialize sample run worker

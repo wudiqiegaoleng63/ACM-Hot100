@@ -48,6 +48,27 @@ services:
     networks:
       - acmhot100-net
 
+  judge0:
+    image: judge0/judge0:latest
+    container_name: acmhot100-judge0
+    ports:
+      - "127.0.0.1:2358:2358"
+    environment:
+      - RAILS_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_HOST=mysql
+      - DATABASE_PORT=3306
+      - DATABASE_USERNAME=root
+      - DATABASE_PASSWORD=root
+      - DATABASE_NAME=judge0
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - acmhot100-net
+
 networks:
   acmhot100-net:
     driver: bridge

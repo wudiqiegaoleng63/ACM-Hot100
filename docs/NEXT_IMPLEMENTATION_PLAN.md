@@ -366,7 +366,7 @@ Phase 2 验收：刷新后草稿不丢；三种语言可切换；样例运行完
 
 ## 7. Phase 3B · Judge0 与用户可见闭环
 
-### [ ] P3-05 · Judge0 HTTP Adapter 与基础设施
+### [x] P3-05 · Judge0 HTTP Adapter 与基础设施
 
 - 查询 Judge0 当前官方 API。
 - Language ID 从数据库配置读取，不硬编码在 Adapter。
