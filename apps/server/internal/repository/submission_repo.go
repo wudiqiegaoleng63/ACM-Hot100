@@ -16,12 +16,12 @@ func CreateSubmission(db *gorm.DB, submission *model.Submission) error {
 			return err
 		}
 
-		// Upsert progress: set ATTEMPTED and increment attempt_count
+		// Upsert progress without downgrading an already solved problem.
 		now := time.Now().UTC()
 		result := tx.Model(&model.UserProblemProgress{}).
 			Where("user_id = ? AND problem_id = ?", submission.UserID, submission.ProblemID).
 			Updates(map[string]interface{}{
-				"state":             model.ProgressAttempted,
+				"state":             gorm.Expr("CASE WHEN state = ? THEN state ELSE ? END", model.ProgressSolved, model.ProgressAttempted),
 				"attempt_count":     gorm.Expr("attempt_count + 1"),
 				"last_submitted_at": now,
 			})

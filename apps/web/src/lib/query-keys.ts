@@ -37,13 +37,15 @@ export const healthKeys = {
 export const submissionKeys = {
   all: ['submissions'] as const,
   lists: ['submissions', 'list'] as const,
-  list: (params?: unknown) =>
-    ['submissions', 'list', params] as const,
+  list: (userID: string, params?: unknown) =>
+    ['submissions', 'list', userID, params] as const,
   details: ['submissions', 'detail'] as const,
-  detail: (id: string) => ['submissions', 'detail', id] as const,
+  detail: (userID: string, id: string) => ['submissions', 'detail', userID, id] as const,
 };
 
 export const progressKeys = {
   all: ['progress'] as const,
+  summary: ['progress', 'summary'] as const,
+  byStage: ['progress', 'by-stage'] as const,
   detail: (problemSlug: string) => ['progress', problemSlug] as const,
 };

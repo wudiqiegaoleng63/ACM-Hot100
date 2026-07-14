@@ -3,7 +3,7 @@ import 'katex/dist/katex.min.css';
 import { Clock3, Database } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { useParams } from 'react-router';
+import { useLocation, useParams } from 'react-router';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -22,6 +22,8 @@ const difficultyLabels: Record<Difficulty, string> = {
 
 export default function ProblemDetailPage() {
   const { slug = '' } = useParams<{ slug: string }>();
+  const location = useLocation();
+  const returnedSubmission = (location.state as { submission?: { languageKey: string; sourceCode: string } } | null)?.submission;
   const { user } = useAuth();
   const problem = useProblem(slug);
   const navigation = useProblemNavigation(slug);
@@ -48,10 +50,19 @@ export default function ProblemDetailPage() {
   return (
     <ProblemWorkspace
       statement={<ProblemStatement data={problem.data!} />}
-      editor={<LanguageEditor problemSlug={slug} userID={user?.id} onStateChange={handleEditorStateChange} />}
+      editor={(
+        <LanguageEditor
+          problemSlug={slug}
+          userID={user?.id}
+          onStateChange={handleEditorStateChange}
+          initialLanguageKey={returnedSubmission?.languageKey}
+          initialSourceCode={returnedSubmission?.sourceCode}
+        />
+      )}
       previous={navigation.data?.prev ?? null}
       next={navigation.data?.next ?? null}
       isAuthenticated={Boolean(user)}
+      userID={user?.id}
       problemSlug={slug}
       sampleCases={problem.data!.sample_cases}
       languageKey={editorState.languageKey}

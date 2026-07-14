@@ -88,6 +88,7 @@ function submissionPayload(status: 'QUEUED' | 'AC') {
   return {
     id: 'submission-1',
     problem_slug: 'two-sum-target',
+    problem_title: '两数目标和',
     language_key: 'cpp17',
     source_code: 'int main() {}',
     status,

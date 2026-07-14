@@ -1,7 +1,10 @@
 package judge
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/acmhot100/server/internal/model"
 )
 
 func TestMapJudge0StatusMapsAllKnownStatuses(t *testing.T) {
@@ -12,13 +15,15 @@ func TestMapJudge0StatusMapsAllKnownStatuses(t *testing.T) {
 		{3, "AC"},
 		{4, "WA"},
 		{5, "TLE"},
-		{6, "MLE"},
+		{6, "CE"},
 		{7, "RE"},
 		{8, "RE"},
 		{9, "RE"},
-		{13, "CE"},
-		{10, "SYSTEM_ERROR"},
-		{11, "SYSTEM_ERROR"},
+		{10, "RE"},
+		{11, "RE"},
+		{12, "RE"},
+		{13, "SYSTEM_ERROR"},
+		{14, "SYSTEM_ERROR"},
 		{99, "SYSTEM_ERROR"}, // unknown
 	}
 	for _, tc := range cases {
@@ -26,6 +31,18 @@ func TestMapJudge0StatusMapsAllKnownStatuses(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("mapJudge0Status(%d) = %s, want %s", tc.id, got, tc.want)
 		}
+	}
+}
+
+func TestSafeJudgeErrorMessageNeverIncludesSubmittedStderr(t *testing.T) {
+	secret := "hidden-input-secret"
+	got := safeJudgeErrorMessage(model.SubmissionStatusRuntimeError, "Runtime Error (SIGSEGV)")
+	if strings.Contains(got, secret) || got != "Runtime Error (SIGSEGV)" {
+		t.Fatalf("runtime summary = %q", got)
+	}
+	got = safeJudgeErrorMessage(model.SubmissionStatusSystemError, secret)
+	if strings.Contains(got, secret) || got != "判题服务执行失败" {
+		t.Fatalf("system summary = %q", got)
 	}
 }
 

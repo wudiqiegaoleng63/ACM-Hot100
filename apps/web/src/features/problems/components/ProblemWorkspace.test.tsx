@@ -136,6 +136,17 @@ describe('ProblemWorkspace', () => {
     expect(screen.getByText(/通过 8\/8 个测试点/)).toHaveTextContent('峰值内存 2 MB');
   });
 
+  it('keeps the formal result visible when progress invalidation refetches the problem', async () => {
+    vi.stubGlobal('fetch', submissionFetch([submissionPayload('AC')]));
+    const { rerender } = renderWorkspace();
+
+    fireEvent.click(screen.getByRole('button', { name: '正式提交' }));
+    await waitFor(() => expect(screen.getByText('答案正确')).toBeInTheDocument());
+
+    rerender(workspaceElement([{ ...sampleCases[0]! }, { ...sampleCases[1]! }]));
+    expect(screen.getByText('答案正确')).toBeInTheDocument();
+  });
+
   it('prevents duplicate submissions while judging and displays queued text with an icon', async () => {
     const fetchMock = submissionFetch([submissionPayload('QUEUED')]);
     vi.stubGlobal('fetch', fetchMock);
@@ -291,6 +302,7 @@ function submissionPayload(status: 'QUEUED' | 'AC' | 'WA' | 'TLE' | 'MLE' | 'RE'
   return {
     id: 'submission-1',
     problem_slug: 'two-sum-target',
+    problem_title: '两数目标和',
     language_key: 'cpp17',
     source_code: 'int main() {}',
     status,
@@ -329,7 +341,11 @@ function jsonResponse(payload: unknown, status = 200) {
 
 function renderWorkspace() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(
+  return render(workspaceElement(sampleCases, queryClient));
+}
+
+function workspaceElement(cases = sampleCases, queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })) {
+  return (
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <ProblemWorkspace
@@ -339,14 +355,14 @@ function renderWorkspace() {
           next={{ slug: 'next', title: '下一题' }}
           isAuthenticated
           problemSlug="two-sum-target"
-          sampleCases={sampleCases}
+          sampleCases={cases}
           languageKey="cpp17"
           sourceCode="int main() {}"
           timeLimitMs={1000}
           memoryLimitKb={262144}
         />
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 }
 

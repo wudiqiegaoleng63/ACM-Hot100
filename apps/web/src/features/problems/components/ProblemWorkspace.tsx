@@ -24,6 +24,7 @@ interface ProblemWorkspaceProps {
   previous: NavigationItem | null;
   next: NavigationItem | null;
   isAuthenticated: boolean;
+  userID?: string;
   problemSlug: string;
   sampleCases: SampleCase[];
   languageKey: string;
@@ -38,6 +39,7 @@ export default function ProblemWorkspace({
   previous,
   next,
   isAuthenticated,
+  userID,
   problemSlug,
   sampleCases,
   languageKey,
@@ -68,30 +70,29 @@ export default function ProblemWorkspace({
   const createRun = useCreateSampleRun();
   const sampleRun = useSampleRun(activeRunID);
   const createSubmission = useCreateSubmission();
-  const submissionQuery = useSubmission(submissionID);
+  const submissionQuery = useSubmission(submissionID, userID);
   const health = useHealth();
   const isMockJudge = health.data?.judge_mode === 'mock';
 
   // Reset sample selection when sample cases change
   useEffect(() => {
     const firstID = sampleCases[0]?.id;
-    if (firstID && !sampleCases.find((s) => s.id === selectedSampleID)) {
+    if (firstID && !sampleCases.find((sample) => sample.id === selectedSampleID)) {
       setSelectedSampleID(firstID);
     }
   }, [sampleCases, selectedSampleID]);
 
-  // Clear active run when problem changes
+  // Clear run and submission state only when navigating to a different problem.
   useEffect(() => {
     setActiveRunID(null);
     setRunError('');
     setInputMode('sample');
-    setSelectedSampleID(sampleCases[0]?.id ?? '');
     setCustomInput('');
     setCustomInputError('');
     setSubmissionID(null);
     setSubmissionMode(false);
     setSubmissionError('');
-  }, [problemSlug, sampleCases]);
+  }, [problemSlug]);
 
   useEffect(() => {
     const stopDragging = () => {
@@ -225,7 +226,9 @@ export default function ProblemWorkspace({
       onRetry={handleRetry}
       hasSubmission={submissionMode}
       submission={submissionQuery.data}
-      submissionError={submissionError || (submissionQuery.error instanceof Error ? submissionQuery.error.message : '')}
+      submissionCreated={submissionID != null}
+      submissionError={submissionError}
+      submissionRefreshError={submissionQuery.error instanceof Error ? submissionQuery.error.message : ''}
       submissionPollTimedOut={submissionQuery.pollTimedOut}
       onRefreshSubmission={() => void submissionQuery.refresh()}
       onRetrySubmission={() => void handleSubmit()}
@@ -335,7 +338,9 @@ function ResultPanel({
   onRetry,
   hasSubmission,
   submission,
+  submissionCreated,
   submissionError,
+  submissionRefreshError,
   submissionPollTimedOut,
   onRefreshSubmission,
   onRetrySubmission,
@@ -358,7 +363,9 @@ function ResultPanel({
   onRetry: () => void;
   hasSubmission: boolean;
   submission: import('@/features/problems/lib/problems-api').SubmissionDetail | undefined;
+  submissionCreated: boolean;
   submissionError: string;
+  submissionRefreshError: string;
   submissionPollTimedOut: boolean;
   onRefreshSubmission: () => void;
   onRetrySubmission: () => void;
@@ -395,7 +402,9 @@ function ResultPanel({
           hasSubmission
             ? <SubmissionResultStatus
                 submission={submission}
+                submissionCreated={submissionCreated}
                 submissionError={submissionError}
+                refreshError={submissionRefreshError}
                 pollTimedOut={submissionPollTimedOut}
                 onRefresh={onRefreshSubmission}
                 onRetry={onRetrySubmission}
@@ -574,7 +583,9 @@ const submissionStatusConfig: Record<SubmissionStatus, { label: string; color: s
 
 function SubmissionResultStatus({
   submission,
+  submissionCreated,
   submissionError,
+  refreshError,
   pollTimedOut,
   onRefresh,
   onRetry,
@@ -583,7 +594,9 @@ function SubmissionResultStatus({
   isMockJudge,
 }: {
   submission: SubmissionDetail | undefined;
+  submissionCreated: boolean;
   submissionError: string;
+  refreshError: string;
   pollTimedOut: boolean;
   onRefresh: () => void;
   onRetry: () => void;
@@ -591,12 +604,23 @@ function SubmissionResultStatus({
   memoryLimitKb?: number;
   isMockJudge: boolean;
 }) {
-  if (submissionError && !submission) {
+  if (submissionError && !submissionCreated) {
     return (
       <div className="space-y-2" role="alert">
         <p className="text-red-400">提交失败：{submissionError}</p>
         <button className="secondary-button gap-1.5 text-xs" onClick={onRetry}>
           <RefreshCw aria-hidden="true" size={12} />重新提交
+        </button>
+      </div>
+    );
+  }
+
+  if (!submission && refreshError) {
+    return (
+      <div className="space-y-2" role="alert">
+        <p className="text-red-400">提交已创建，但判题状态加载失败：{refreshError}</p>
+        <button className="secondary-button gap-1.5 text-xs" onClick={onRefresh}>
+          <RefreshCw aria-hidden="true" size={12} />重新加载状态
         </button>
       </div>
     );
@@ -672,9 +696,9 @@ function SubmissionResultStatus({
         <CopyableOutput label="错误信息" value={submission.error_message} />
       )}
 
-      {submissionError && (
+      {refreshError && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-red-300" role="alert">
-          <span>刷新判题状态失败：{submissionError}</span>
+          <span>刷新判题状态失败：{refreshError}</span>
           <button className="secondary-button gap-1.5 text-xs" onClick={onRefresh}>
             <RefreshCw aria-hidden="true" size={12} />重试刷新
           </button>

@@ -26,10 +26,14 @@ export default function LanguageEditor({
   problemSlug,
   userID,
   onStateChange,
+  initialLanguageKey,
+  initialSourceCode,
 }: {
   problemSlug: string;
   userID?: string;
   onStateChange?: (state: { languageKey: string; sourceCode: string }) => void;
+  initialLanguageKey?: string;
+  initialSourceCode?: string;
 }) {
   const languagesQuery = useLanguages();
   const saveDraft = useSaveDraft();
@@ -41,6 +45,7 @@ export default function LanguageEditor({
   const [restoredContext, setRestoredContext] = useState('');
   const [warning, setWarning] = useState('');
   const [sizeError, setSizeError] = useState('');
+  const initialSourceApplied = useRef(false);
   const draftQuery = useDraft(userID, problemSlug, languageKey);
   const owner = userID ?? 'guest';
   const currentContext = draftContext(owner, problemSlug, languageKey);
@@ -65,10 +70,12 @@ export default function LanguageEditor({
   }, []);
 
   useEffect(() => {
-    const firstLanguage = languagesQuery.data?.[0];
+    const firstLanguage = initialLanguageKey
+      ? languagesQuery.data?.find((language) => language.key === initialLanguageKey)
+      : languagesQuery.data?.[0];
     if (!firstLanguage || languageKey) return;
     setLanguageKey(firstLanguage.key);
-  }, [languageKey, languagesQuery.data]);
+  }, [initialLanguageKey, languageKey, languagesQuery.data]);
 
   useEffect(() => {
     if (!languageKey) return;
@@ -80,10 +87,17 @@ export default function LanguageEditor({
 
     const localDraft = readLocalDraft(localDraftKey(owner, problemSlug, languageKey));
     const serverDraft = draftQuery.status === 'success' ? draftQuery.data : undefined;
-    const restored = newerDraft(localDraft, serverDraft) ?? {
+    const returnedSource = !initialSourceApplied.current && initialSourceCode && languageKey === initialLanguageKey
+      ? { source_code: initialSourceCode, updated_at: new Date().toISOString() }
+      : undefined;
+    const restored = returnedSource ?? newerDraft(localDraft, serverDraft) ?? {
       source_code: language.source_template,
       updated_at: '',
     };
+    if (returnedSource) {
+      initialSourceApplied.current = true;
+      writeLocalDraft(localDraftKey(owner, problemSlug, languageKey), returnedSource);
+    }
 
     setTemplate(language.source_template);
     setSourceCode(restored.source_code);
@@ -104,6 +118,8 @@ export default function LanguageEditor({
     draftQuery.data,
     draftQuery.error,
     draftQuery.status,
+    initialLanguageKey,
+    initialSourceCode,
     languageKey,
     languagesQuery.data,
     owner,

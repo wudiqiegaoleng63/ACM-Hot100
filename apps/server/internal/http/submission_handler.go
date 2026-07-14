@@ -23,32 +23,34 @@ type createSubmissionRequest struct {
 }
 
 type submissionSummaryResponse struct {
-	ID          string    `json:"id"`
-	ProblemSlug string    `json:"problem_slug"`
-	LanguageKey string    `json:"language_key"`
-	Status      string    `json:"status"`
-	PassedCases int       `json:"passed_cases"`
-	TotalCases  int       `json:"total_cases"`
-	TimeMs      *int      `json:"time_ms"`
-	MemoryKb    *int      `json:"memory_kb"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	ProblemSlug  string    `json:"problem_slug"`
+	ProblemTitle string    `json:"problem_title"`
+	LanguageKey  string    `json:"language_key"`
+	Status       string    `json:"status"`
+	PassedCases  int       `json:"passed_cases"`
+	TotalCases   int       `json:"total_cases"`
+	TimeMs       *int      `json:"time_ms"`
+	MemoryKb     *int      `json:"memory_kb"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type submissionDetailResponse struct {
-	ID              string                       `json:"id"`
-	ProblemSlug     string                       `json:"problem_slug"`
-	LanguageKey     string                       `json:"language_key"`
-	SourceCode      string                       `json:"source_code"`
-	Status          string                       `json:"status"`
-	PassedCases     int                          `json:"passed_cases"`
-	TotalCases      int                          `json:"total_cases"`
-	TimeMs          *int                         `json:"time_ms"`
-	MemoryKb        *int                         `json:"memory_kb"`
-	CompilerOutput  string                       `json:"compiler_output"`
-	ErrorMessage    string                       `json:"error_message"`
-	CaseResults     []caseResultResponse         `json:"case_results"`
-	CreatedAt       time.Time                    `json:"created_at"`
-	JudgedAt        *time.Time                   `json:"judged_at"`
+	ID             string               `json:"id"`
+	ProblemSlug    string               `json:"problem_slug"`
+	ProblemTitle   string               `json:"problem_title"`
+	LanguageKey    string               `json:"language_key"`
+	SourceCode     string               `json:"source_code"`
+	Status         string               `json:"status"`
+	PassedCases    int                  `json:"passed_cases"`
+	TotalCases     int                  `json:"total_cases"`
+	TimeMs         *int                 `json:"time_ms"`
+	MemoryKb       *int                 `json:"memory_kb"`
+	CompilerOutput string               `json:"compiler_output"`
+	ErrorMessage   string               `json:"error_message"`
+	CaseResults    []caseResultResponse `json:"case_results"`
+	CreatedAt      time.Time            `json:"created_at"`
+	JudgedAt       *time.Time           `json:"judged_at"`
 }
 
 type caseResultResponse struct {
@@ -204,13 +206,18 @@ func listSubmissions(db *gorm.DB) gin.HandlerFunc {
 				}
 			}
 			var problems []model.Problem
-			db.Where("id IN ?", problemIDs).Select("id, slug").Find(&problems)
-			slugMap := make(map[string]string, len(problems))
-			for _, p := range problems {
-				slugMap[p.ID] = p.Slug
+			if err := db.Where("id IN ?", problemIDs).Select("id, slug, title").Find(&problems).Error; err != nil {
+				apiError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to resolve submission problems")
+				return
 			}
-			for i, sub := range submissions {
-				items[i].ProblemSlug = slugMap[sub.ProblemID]
+			problemMap := make(map[string]model.Problem, len(problems))
+			for _, problem := range problems {
+				problemMap[problem.ID] = problem
+			}
+			for i, submission := range submissions {
+				problem := problemMap[submission.ProblemID]
+				items[i].ProblemSlug = problem.Slug
+				items[i].ProblemTitle = problem.Title
 			}
 		}
 
@@ -243,8 +250,10 @@ func getSubmission(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		problemSlug := ""
-		if p, err := repository.GetProblemByID(db, submission.ProblemID); err == nil && p != nil {
-			problemSlug = p.Slug
+		problemTitle := ""
+		if problem, err := repository.GetProblemByID(db, submission.ProblemID); err == nil && problem != nil {
+			problemSlug = problem.Slug
+			problemTitle = problem.Title
 		}
 
 		caseResults := make([]caseResultResponse, len(submission.CaseResults))
@@ -266,6 +275,7 @@ func getSubmission(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, submissionDetailResponse{
 			ID:             submission.ID,
 			ProblemSlug:    problemSlug,
+			ProblemTitle:   problemTitle,
 			LanguageKey:    submission.LanguageKey,
 			SourceCode:     submission.SourceCode,
 			Status:         submission.Status,

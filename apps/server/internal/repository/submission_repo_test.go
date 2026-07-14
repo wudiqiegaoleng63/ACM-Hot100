@@ -40,6 +40,26 @@ func TestCreateSubmissionSetsQueuedAndWritesProgress(t *testing.T) {
 	}
 }
 
+func TestCreateSubmissionPreservesSolvedProgress(t *testing.T) {
+	db, mock := repositoryTestDB(t)
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO `submissions`")).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE `user_problem_progress` SET .*`state`=CASE WHEN state = \\? THEN state ELSE \\? END").
+		WithArgs(sqlmock.AnyArg(), model.ProgressSolved, model.ProgressAttempted, "user-1", "problem-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	submission := &model.Submission{ID: "sub-solved", UserID: "user-1", ProblemID: "problem-1", Status: model.SubmissionStatusQueued}
+	if err := CreateSubmission(db, submission); err != nil {
+		t.Fatalf("CreateSubmission: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
 func TestCreateSubmissionIncrementsExistingProgress(t *testing.T) {
 	db, mock := repositoryTestDB(t)
 

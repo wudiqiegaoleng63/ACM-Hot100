@@ -140,8 +140,8 @@ export function useCreateSubmission() {
   return useMutation({
     mutationFn: ({ slug, languageKey, sourceCode }: { slug: string; languageKey: string; sourceCode: string }) =>
       problemsApi.createSubmission(slug, languageKey, sourceCode),
-    onSuccess: async () => {
-      await Promise.all([
+    onSuccess: () => {
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: problemKeys.all }),
         queryClient.invalidateQueries({ queryKey: progressKeys.all }),
         queryClient.invalidateQueries({ queryKey: submissionKeys.lists }),
@@ -165,7 +165,7 @@ export function getSubmissionPollInterval(status: problemsApi.SubmissionStatus |
     : SUBMISSION_SLOW_POLL_MS;
 }
 
-export function useSubmission(submissionID: string | null) {
+export function useSubmission(submissionID: string | null, userID = 'anonymous') {
   const queryClient = useQueryClient();
   const startedAt = useRef<number | null>(null);
   const invalidatedTerminalID = useRef<string | null>(null);
@@ -178,7 +178,7 @@ export function useSubmission(submissionID: string | null) {
   }, [submissionID]);
 
   const query = useQuery({
-    queryKey: submissionKeys.detail(submissionID ?? ''),
+    queryKey: submissionKeys.detail(userID, submissionID ?? ''),
     queryFn: () => problemsApi.getSubmission(submissionID!),
     enabled: Boolean(submissionID),
     refetchInterval: (currentQuery) => {
@@ -227,9 +227,9 @@ export function useSubmission(submissionID: string | null) {
 
 // --- useSubmissions (list) ---
 
-export function useSubmissions(params?: SubmissionListParams) {
+export function useSubmissions(params?: SubmissionListParams, userID = 'anonymous') {
   return useQuery({
-    queryKey: submissionKeys.list(params),
+    queryKey: submissionKeys.list(userID, params),
     queryFn: () => problemsApi.listSubmissions(params),
     placeholderData: (prev) => prev,
   });

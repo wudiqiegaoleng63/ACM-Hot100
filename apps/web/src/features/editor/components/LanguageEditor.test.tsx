@@ -65,6 +65,16 @@ describe('LanguageEditor', () => {
     );
   });
 
+  it('restores submission code when returning from submission details', async () => {
+    renderEditor(undefined, { languageKey: 'python3', sourceCode: 'print("retry")' });
+
+    expect(await screen.findByTestId('editor-language')).toHaveTextContent('python');
+    expect(screen.getByTestId('editor-value')).toHaveTextContent('print("retry")');
+    expect(JSON.parse(localStorage.getItem('draft:guest:two-sum-target:python3') ?? '{}')).toMatchObject({
+      source_code: 'print("retry")',
+    });
+  });
+
   it('switches an untouched template without confirmation', async () => {
     const confirm = vi.spyOn(window, 'confirm');
     renderEditor();
@@ -234,11 +244,16 @@ describe('LanguageEditor', () => {
   });
 });
 
-function renderEditor(userID?: string) {
+function renderEditor(userID?: string, initial?: { languageKey: string; sourceCode: string }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <LanguageEditor problemSlug="two-sum-target" userID={userID} />
+      <LanguageEditor
+        problemSlug="two-sum-target"
+        userID={userID}
+        initialLanguageKey={initial?.languageKey}
+        initialSourceCode={initial?.sourceCode}
+      />
     </QueryClientProvider>,
   );
 }

@@ -217,6 +217,7 @@ const caseResultSchema = z.object({
 const submissionDetailSchema = z.object({
   id: z.string(),
   problem_slug: z.string(),
+  problem_title: z.string(),
   language_key: z.string(),
   source_code: z.string(),
   status: submissionStatusSchema,
@@ -236,6 +237,7 @@ export type SubmissionDetail = z.infer<typeof submissionDetailSchema>;
 const submissionSummarySchema = z.object({
   id: z.string(),
   problem_slug: z.string(),
+  problem_title: z.string(),
   language_key: z.string(),
   status: submissionStatusSchema,
   passed_cases: z.number().int(),

@@ -5,9 +5,9 @@ import type { SubmissionListParams } from '@/features/submissions/lib/submission
 
 // --- useSubmissions ---
 
-export function useSubmissions(params?: SubmissionListParams) {
+export function useSubmissions(params?: SubmissionListParams, userID = 'anonymous') {
   return useQuery({
-    queryKey: submissionKeys.list(params),
+    queryKey: submissionKeys.list(userID, params),
     queryFn: () => submissionsApi.getSubmissions(params),
     placeholderData: (prev) => prev,
   });
@@ -15,9 +15,9 @@ export function useSubmissions(params?: SubmissionListParams) {
 
 // --- useSubmission ---
 
-export function useSubmission(id: string) {
+export function useSubmission(id: string, userID = 'anonymous') {
   return useQuery({
-    queryKey: submissionKeys.detail(id),
+    queryKey: submissionKeys.detail(userID, id),
     queryFn: () => submissionsApi.getSubmission(id),
     enabled: !!id,
   });

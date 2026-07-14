@@ -80,9 +80,13 @@ func NewServer(cfg *config.Config, db *gorm.DB, rdb *redis.Client) *gin.Engine {
 			submissions.GET("/:id", getSubmission(db))
 		}
 
-		// User routes (placeholder)
-		users := v1.Group("/users")
-		_ = users
+		// Profile routes
+		profile := v1.Group("/profile")
+		profile.Use(RequireAuth(cfg, rdb))
+		{
+			profile.GET("/summary", getProfileSummary(db))
+			profile.GET("/progress-by-stage", getProfileProgressByStage(db))
+		}
 	}
 
 	return r

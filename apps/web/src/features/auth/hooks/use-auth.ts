@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { authKeys } from '@/lib/query-keys';
+import { authKeys, problemKeys, progressKeys, submissionKeys } from '@/lib/query-keys';
 import * as authApi from '@/features/auth/lib/auth-api';
 import type { LoginRequest, RegisterRequest } from '@/features/auth/lib/auth-api';
 
@@ -22,7 +22,10 @@ export function useLogin() {
   return useMutation({
     mutationFn: (data: LoginRequest) => authApi.login(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: authKeys.me });
+      queryClient.removeQueries({ queryKey: submissionKeys.all });
+      queryClient.removeQueries({ queryKey: progressKeys.all });
+      queryClient.removeQueries({ queryKey: problemKeys.all });
+      void queryClient.invalidateQueries({ queryKey: authKeys.me });
     },
   });
 }

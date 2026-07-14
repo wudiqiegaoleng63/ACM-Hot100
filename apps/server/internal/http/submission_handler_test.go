@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -53,6 +55,27 @@ func TestCreateSubmissionRejectsMissingSourceCode(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unexpected DB work: %v", err)
+	}
+}
+
+func TestGetSubmissionReturnsNotFoundForAnotherUser(t *testing.T) {
+	db, mock := handlerTestDB(t)
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `submissions` WHERE id = ? AND user_id = ? ORDER BY `submissions`.`id` LIMIT ?")).
+		WithArgs("sub-other", "user-1", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id"}))
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("userID", "user-1") })
+	router.GET("/api/v1/submissions/:id", getSubmission(db))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/submissions/sub-other", nil))
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body=%s", response.Code, response.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
 	}
 }
 

@@ -12,23 +12,23 @@ import (
 
 	"github.com/acmhot100/server/internal/model"
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"gopkg.in/yaml.v3"
 )
 
 // ─── YAML structures ────────────────────────────────────────────────────────
 
 // problemYAML represents the structure of a problem.yaml file.
 type problemYAML struct {
-	Slug         string `yaml:"slug"`
-	OrderIndex   int    `yaml:"order_index"`
-	Title        string `yaml:"title"`
-	Difficulty   string `yaml:"difficulty"`
-	Stage        string `yaml:"stage"`
-	TimeLimitMs  int    `yaml:"time_limit_ms"`
-	MemoryLimitKb int   `yaml:"memory_limit_kb"`
-	Tags         []struct {
+	Slug          string `yaml:"slug"`
+	OrderIndex    int    `yaml:"order_index"`
+	Title         string `yaml:"title"`
+	Difficulty    string `yaml:"difficulty"`
+	Stage         string `yaml:"stage"`
+	TimeLimitMs   int    `yaml:"time_limit_ms"`
+	MemoryLimitKb int    `yaml:"memory_limit_kb"`
+	Tags          []struct {
 		Slug string `yaml:"slug"`
 		Name string `yaml:"name"`
 	} `yaml:"tags"`
@@ -60,7 +60,8 @@ func SeedLanguageConfigs(db *gorm.DB) error {
 		{
 			Key:                "cpp17",
 			DisplayName:        "C++17",
-			Judge0LanguageName: "C++ (gcc 12.2.0)",
+			Judge0LanguageName: "C++ (GCC 14.1.0)",
+			Judge0LanguageID:   intPointer(105),
 			EditorLanguage:     "cpp",
 			SourceTemplate: `#include <bits/stdc++.h>
 using namespace std;
@@ -75,7 +76,8 @@ int main() {
 		{
 			Key:                "python3",
 			DisplayName:        "Python 3",
-			Judge0LanguageName: "Python (3.12.1)",
+			Judge0LanguageName: "Python (3.12.5)",
+			Judge0LanguageID:   intPointer(100),
 			EditorLanguage:     "python",
 			SourceTemplate: `# Write your solution here
 def main():
@@ -88,7 +90,8 @@ if __name__ == "__main__":
 		{
 			Key:                "java17",
 			DisplayName:        "Java 17",
-			Judge0LanguageName: "Java (OpenJDK 17.0.6)",
+			Judge0LanguageName: "Java (JDK 17.0.6)",
+			Judge0LanguageID:   intPointer(91),
 			EditorLanguage:     "java",
 			SourceTemplate: `import java.util.*;
 
@@ -104,7 +107,7 @@ public class Main {
 	for _, cfg := range configs {
 		result := db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"display_name", "judge0_language_name", "editor_language", "source_template", "enabled"}),
+			DoUpdates: clause.AssignmentColumns([]string{"display_name", "judge0_language_name", "judge0_language_id", "editor_language", "source_template", "enabled"}),
 		}).Create(&cfg)
 
 		if result.Error != nil {
@@ -114,6 +117,10 @@ public class Main {
 	}
 
 	return nil
+}
+
+func intPointer(value int) *int {
+	return &value
 }
 
 // ─── SeedProblems ───────────────────────────────────────────────────────────
@@ -391,14 +398,14 @@ func readTestCases(dir string, isSample bool, orderIndex *int) ([]model.TestCase
 // It looks for ## Input Format, ## Output Format, ## Constraints, and ## Hints headings.
 func parseStatementSections(md string) (inputFormat, outputFormat, constraints, hints string) {
 	sections := map[string]*string{
-		"输入格式":   &inputFormat,
-		"输出格式":   &outputFormat,
-		"数据范围":   &constraints,
-		"提示":     &hints,
-		"input":  &inputFormat,
-		"output": &outputFormat,
+		"输入格式":        &inputFormat,
+		"输出格式":        &outputFormat,
+		"数据范围":        &constraints,
+		"提示":          &hints,
+		"input":       &inputFormat,
+		"output":      &outputFormat,
 		"constraints": &constraints,
-		"hints":  &hints,
+		"hints":       &hints,
 	}
 
 	lines := strings.Split(md, "\n")

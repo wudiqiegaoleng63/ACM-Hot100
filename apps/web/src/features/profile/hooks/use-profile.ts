@@ -1,12 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
-import { progressKeys } from '@/lib/query-keys';
+
 import * as profileApi from '@/features/profile/lib/profile-api';
+import { progressKeys } from '@/lib/query-keys';
 
-// --- useProgress ---
-
-export function useProgress() {
+export function useProgressSummary() {
   return useQuery({
-    queryKey: progressKeys.all,
-    queryFn: () => profileApi.getProgress(),
+    queryKey: progressKeys.summary,
+    queryFn: profileApi.getProgressSummary,
+  });
+}
+
+export function useProgressByStage() {
+  return useQuery({
+    queryKey: progressKeys.byStage,
+    queryFn: profileApi.getProgressByStage,
   });
 }

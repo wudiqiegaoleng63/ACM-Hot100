@@ -51,11 +51,10 @@ const (
 	judge0StatusAccepted         = 3
 	judge0StatusWrongAnswer      = 4
 	judge0StatusTimeLimit        = 5
-	judge0StatusMemoryLimit      = 6
-	judge0StatusRuntimeError     = 7 // SIGSEGV
-	judge0StatusCompilationError = 13
-	judge0StatusInternalError    = 10
-	judge0StatusExecFormatError  = 11
+	judge0StatusCompilationError = 6
+	judge0StatusRuntimeError     = 7 // 7–12 are runtime errors
+	judge0StatusInternalError    = 13
+	judge0StatusExecFormatError  = 14
 )
 
 // mapJudge0Status maps a Judge0 status ID to our internal status string.
@@ -67,11 +66,9 @@ func mapJudge0Status(statusID int) string {
 		return model.SubmissionStatusWrongAnswer
 	case judge0StatusTimeLimit:
 		return model.SubmissionStatusTimeLimit
-	case judge0StatusMemoryLimit:
-		return model.SubmissionStatusMemoryLimit
 	case judge0StatusCompilationError:
 		return model.SubmissionStatusCompileError
-	case judge0StatusRuntimeError, 8, 9: // various runtime errors
+	case judge0StatusRuntimeError, 8, 9, 10, 11, 12:
 		return model.SubmissionStatusRuntimeError
 	case judge0StatusInternalError, judge0StatusExecFormatError:
 		return model.SubmissionStatusSystemError
@@ -188,8 +185,10 @@ func (a *Judge0Adapter) Judge(ctx context.Context, submissionID string) (*JudgeR
 		if i == 0 && result.CompileOutput != nil {
 			compilerOutput = TruncateOutput(SanitizePath(*result.CompileOutput))
 		}
-		if errorMessage == "" && result.Stderr != nil {
-			errorMessage = TruncateOutput(SanitizePath(*result.Stderr))
+		// Never return arbitrary stderr from hidden test execution: submitted code can
+		// copy stdin to stderr. Only expose the platform's generic runtime summary.
+		if errorMessage == "" && (status == model.SubmissionStatusRuntimeError || status == model.SubmissionStatusSystemError) {
+			errorMessage = safeJudgeErrorMessage(status, result.Status.Description)
 		}
 
 		// For CE, stop immediately
@@ -253,6 +252,16 @@ func (a *Judge0Adapter) Judge(ctx context.Context, submissionID string) (*JudgeR
 		ErrorMessage:   errorMessage,
 		CaseResults:    verdicts,
 	}, nil
+}
+
+func safeJudgeErrorMessage(status, description string) string {
+	if status == model.SubmissionStatusRuntimeError {
+		if description == "" {
+			return "程序运行时异常"
+		}
+		return TruncateOutput(SanitizePath(description))
+	}
+	return "判题服务执行失败"
 }
 
 func (a *Judge0Adapter) submitAndWait(ctx context.Context, req judge0SubmissionRequest) (*judge0ResultResponse, error) {
