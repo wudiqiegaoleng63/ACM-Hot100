@@ -33,6 +33,7 @@ let latestRefreshResult = false;
 let sessionGeneration = 0;
 
 const AUTH_ENDPOINTS_WITHOUT_AUTO_REFRESH = new Set([
+  '/auth/me',
   '/auth/login',
   '/auth/register',
   '/auth/refresh',

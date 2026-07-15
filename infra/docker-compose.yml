@@ -1,74 +1,241 @@
+name: acmhot100
+
+x-server-image: &server-image
+  image: acmhot100-server:local
+  build:
+    context: ..
+    dockerfile: apps/server/Dockerfile
+
+x-app-environment: &app-environment
+  APP_ENV: development
+  APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}
+  API_ADDR: ":8080"
+  TRUSTED_PROXIES: ""
+  MYSQL_DSN: "app:${MYSQL_PASSWORD:-app-local-password}@tcp(mysql:3306)/acmhot100?charset=utf8mb4&parseTime=True&loc=UTC"
+  REDIS_ADDR: redis:6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-local-redis-password}
+  REDIS_DB: 0
+  REDIS_KEY_PREFIX: "acmhot100:"
+  JWT_ISSUER: acmhot100
+  JWT_ACCESS_AUDIENCE: acmhot100-web
+  JWT_REFRESH_AUDIENCE: acmhot100-refresh
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local-access-secret-change-before-production}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-refresh-secret-change-before-production}
+  JWT_ACCESS_TTL: 900
+  JWT_REFRESH_TTL: 604800
+  MAIL_MODE: smtp
+  SMTP_HOST: mailpit
+  SMTP_PORT: 1025
+  SMTP_USERNAME: ""
+  SMTP_PASSWORD: ""
+  SMTP_FROM: "ACM Hot 100 <no-reply@example.local>"
+  SMTP_TLS_MODE: none
+  JUDGE_MODE: ${JUDGE_MODE:-mock}
+  JUDGE0_BASE_URL: http://judge0-server:2358
+
 services:
   mysql:
     image: mysql:8.0
-    container_name: acmhot100-mysql
-    ports:
-      - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root-local-password}
       MYSQL_DATABASE: acmhot100
       MYSQL_USER: app
-      MYSQL_PASSWORD: app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-app-local-password}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot"]
-      interval: 10s
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 3s
       timeout: 5s
-      retries: 5
+      retries: 30
+      start_period: 15s
+    restart: unless-stopped
     networks:
       - acmhot100-net
 
   redis:
     image: redis:7-alpine
-    container_name: acmhot100-redis
-    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-local-redis-password}
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
-      interval: 10s
+      interval: 3s
       timeout: 5s
-      retries: 5
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
     networks:
       - acmhot100-net
 
   mailpit:
-    image: axllent/mailpit:latest
-    container_name: acmhot100-mailpit
+    image: axllent/mailpit:v1.30.4
     ports:
-      - "1025:1025"
-      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_HTTP_PORT:-8025}:8025"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:8025/health"]
-      interval: 10s
+      test: ["CMD", "wget", "--spider", "http://localhost:8025/livez"]
+      interval: 3s
       timeout: 5s
-      retries: 5
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
     networks:
       - acmhot100-net
 
-  judge0:
-    image: judge0/judge0:latest
-    container_name: acmhot100-judge0
-    ports:
-      - "127.0.0.1:2358:2358"
-    environment:
-      - RAILS_ENV=production
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_HOST=mysql
-      - DATABASE_PORT=3306
-      - DATABASE_USERNAME=root
-      - DATABASE_PASSWORD=root
-      - DATABASE_NAME=judge0
+  migrate:
+    <<: *server-image
+    command: ["/app/api", "-migrate"]
+    environment: *app-environment
     depends_on:
-      redis:
-        condition: service_healthy
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - acmhot100-net
+
+  seed:
+    <<: *server-image
+    command: ["/app/api", "-seed"]
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    networks:
+      - acmhot100-net
+
+  api:
+    <<: *server-image
+    environment: *app-environment
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - acmhot100-net
+
+  worker:
+    <<: *server-image
+    command: ["/app/judge-worker"]
+    environment: *app-environment
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 15s
+    networks:
+      - acmhot100-net
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    image: acmhot100-web:local
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5173}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - acmhot100-net
+
+  judge0-db:
+    image: postgres:16.2
+    profiles: ["judge0"]
+    environment:
+      POSTGRES_DB: judge0
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: ${JUDGE0_POSTGRES_PASSWORD:-judge0-local-postgres-password}
+    volumes:
+      - judge0_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U judge0 -d judge0"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      - acmhot100-net
+
+  judge0-redis:
+    image: redis:7.2.4-alpine
+    profiles: ["judge0"]
+    command: ["sh", "-c", "exec redis-server --appendonly no --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      REDIS_PASSWORD: ${JUDGE0_REDIS_PASSWORD:-judge0-local-redis-password}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      - acmhot100-net
+
+  judge0-server:
+    image: judge0/judge0:1.13.1
+    profiles: ["judge0"]
+    privileged: true
+    environment: &judge0-environment
+      REDIS_HOST: judge0-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${JUDGE0_REDIS_PASSWORD:-judge0-local-redis-password}
+      POSTGRES_HOST: judge0-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: judge0
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: ${JUDGE0_POSTGRES_PASSWORD:-judge0-local-postgres-password}
+    ports:
+      - "127.0.0.1:${JUDGE0_PORT:-2358}:2358"
+    depends_on:
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - acmhot100-net
+
+  judge0-workers:
+    image: judge0/judge0:1.13.1
+    profiles: ["judge0"]
+    command: ["./scripts/workers"]
+    privileged: true
+    environment: *judge0-environment
+    depends_on:
+      judge0-server:
+        condition: service_started
+    restart: unless-stopped
     networks:
       - acmhot100-net
 
@@ -79,3 +246,4 @@ networks:
 volumes:
   mysql_data:
   redis_data:
+  judge0_data:

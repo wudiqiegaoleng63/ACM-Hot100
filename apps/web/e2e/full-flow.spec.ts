@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 const mailpitURL = process.env.E2E_MAILPIT_URL ?? 'http://127.0.0.1:8025';
+const appPublicURL = process.env.E2E_PUBLIC_URL;
 const runID = process.env.E2E_RUN_ID ?? Date.now().toString(36);
 const email = `e2e-${runID}@example.local`;
 const username = `e2e_${runID}`.slice(0, 20);
@@ -34,6 +35,7 @@ test('registration through accepted submission detail', async ({ page, request }
     return verificationLink;
   }, { timeout: 10_000, intervals: [200, 500, 1_000] }).not.toBe('');
 
+  if (appPublicURL) verificationLink = verificationLink.replace(/^https?:\/\/[^/]+/, appPublicURL);
   await page.goto(verificationLink);
   await expect(page.getByRole('heading', { name: '邮箱验证成功' })).toBeVisible();
   await page.getByRole('link', { name: '前往登录' }).click();

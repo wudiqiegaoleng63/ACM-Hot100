@@ -36,6 +36,7 @@ describe('api client', () => {
   });
 
   it.each([
+    '/auth/me',
     '/auth/login',
     '/auth/register',
     '/auth/refresh',

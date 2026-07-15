@@ -126,8 +126,25 @@ export default function ProblemListPage() {
       {problems.data.items.length === 0 ? (
         <PageMessage title="没有符合条件的题目">调整筛选条件后再试。</PageMessage>
       ) : (
-        <div className="overflow-x-auto border-y border-[var(--border)] bg-[var(--surface)]">
-          <table className="w-full min-w-[720px] border-collapse text-left">
+        <>
+          <div className="divide-y divide-[var(--border)] border-y border-[var(--border)] bg-[var(--surface)] md:hidden">
+            {problems.data.items.map((problem) => (
+              <Link
+                className="grid min-h-16 grid-cols-[28px_1fr_auto] items-center gap-3 px-4 py-3 no-underline"
+                key={problem.id}
+                to={`/problems/${problem.slug}`}
+              >
+                <StatusBadge state={problem.progress_state} />
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{problem.order_index}. {problem.title}</span>
+                  {problem.tags[0] && <span className="mt-1 block text-xs text-[var(--text-muted)]">{problem.tags[0].name}</span>}
+                </span>
+                <span className="text-xs text-[var(--text-muted)]">{difficultyLabels[problem.difficulty]}</span>
+              </Link>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto border-y border-[var(--border)] bg-[var(--surface)] md:block">
+            <table className="w-full min-w-[720px] border-collapse text-left">
             <thead className="bg-[var(--surface-subtle)] text-xs text-[var(--text-muted)]">
               <tr>
                 <th className="px-4 py-3 font-medium">状态</th>
@@ -156,8 +173,9 @@ export default function ProblemListPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        </>
       )}
     </section>
   );
