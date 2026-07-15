@@ -19,6 +19,8 @@ api-docs.html
 *.dylib
 *.test
 *.out
+!seed/problems/**/samples/*.out
+!seed/problems/**/hidden/*.out
 
 # IDE
 .vscode/
