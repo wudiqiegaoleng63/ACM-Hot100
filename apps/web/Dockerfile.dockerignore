@@ -1,0 +1,12 @@
+**
+!apps/
+!apps/web/
+!apps/web/Dockerfile
+!apps/web/index.html
+!apps/web/nginx.conf
+!apps/web/package.json
+!apps/web/package-lock.json
+!apps/web/src/
+!apps/web/src/**
+!apps/web/tsconfig.json
+!apps/web/vite.config.ts

@@ -10,3 +10,15 @@ summary: Drive the ACM Hot 100 web/API/worker flow against isolated local servic
 5. Use a fresh `E2E_RUN_ID`; the test deletes Mailpit messages. Stop processes and remove isolated containers afterward.
 
 Gotchas: system ports 3306/6379 may already be occupied; `npx` must run from `apps/web`; Chrome channel works when Playwright's bundled browser is absent; Monaco CDN can load slowly, but the flow can seed the authenticated local draft and reload.
+
+## Container image workflow
+
+For `.github/workflows/images.yml`, Dockerfile, or Dockerfile-specific ignore changes:
+
+1. Run `npm run images:lint` from `apps/web` after `npm ci`.
+2. From the repository root, build with Buildx and `--load` using `apps/server/Dockerfile` and `apps/web/Dockerfile`.
+3. Confirm `/app/api` and `/app/judge-worker` are executable in the Server image.
+4. Search the final Web filesystem and fail on `/seed/`, `/hidden/`, `/solutions/`, `.env`, or `.env.*` files.
+5. Safely probe the policy by copying the workflow, validator, and ignore files into a temporary matching tree; confirm mutations for an unpinned Action, PR `push: true`, and a broader Web context are rejected.
+
+Never push a tag, dispatch the workflow, log in to GHCR, or publish an image during local verification.

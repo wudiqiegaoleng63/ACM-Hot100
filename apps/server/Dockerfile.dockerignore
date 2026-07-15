@@ -1,0 +1,7 @@
+**
+!apps/
+!apps/server/
+!apps/server/**
+!seed/
+!seed/problems/
+!seed/problems/**

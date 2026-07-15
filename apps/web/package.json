@@ -12,7 +12,8 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "api:lint": "redocly lint ../../packages/contracts/openapi.yaml --config ../../packages/contracts/redocly.yaml",
-    "api:docs": "redocly build-docs ../../packages/contracts/openapi.yaml --config ../../packages/contracts/redocly.yaml --output api-docs.html"
+    "api:docs": "redocly build-docs ../../packages/contracts/openapi.yaml --config ../../packages/contracts/redocly.yaml --output api-docs.html",
+    "images:lint": "node ../../scripts/verify-image-workflow.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
@@ -49,6 +50,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "eslint": "^9.29.0",
+    "js-yaml": "4.3.0",
     "jsdom": "^26.1.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.63.0",

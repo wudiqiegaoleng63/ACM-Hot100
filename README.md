@@ -208,6 +208,35 @@ make verify-compose
 
 远端首次运行成功前不展示 CI 成功徽章。E2E 失败时会上传保留 7 天的 Playwright report、trace 和经过再次脱敏的 Compose 日志；成功时不上传诊断材料。若 CI 与本地结果不同，先确认 Node `20.19.5`、Go `1.26.5`、`npm ci` 所用 lockfile、Playwright Chromium，以及 Docker Compose v2 是否一致。
 
+## 可追溯容器镜像
+
+[`.github/workflows/images.yml`](.github/workflows/images.yml) 构建两个 GHCR 镜像：
+
+- `ghcr.io/wudiqiegaoleng63/acmhot100-web`
+- `ghcr.io/wudiqiegaoleng63/acmhot100-server`（同时包含 `/app/api` 与 `/app/judge-worker`）
+
+针对 `main` 的 Pull Request 只构建、不登录 registry、不推送。只有精确的稳定语义化版本 tag（如 `v1.2.3`），或从 `main` 受控手动触发并提供同格式版本，才会发布镜像。每次发布仅生成精确版本标签（`1.2.3`）和完整 Git 提交标签（`sha-<40位提交>`），不生成 `latest`、主版本或次版本浮动标签；如果版本标签已经存在，workflow 会拒绝覆盖。
+
+发布镜像带 `org.opencontainers.image.source/revision/version` OCI labels，并由 BuildKit 生成 SBOM 和完整 provenance；GitHub artifact attestation 绑定最终镜像 digest。生产配置应记录并使用 digest，而不是依赖可移动标签：
+
+```powershell
+docker pull ghcr.io/wudiqiegaoleng63/acmhot100-web@sha256:<digest>
+docker pull ghcr.io/wudiqiegaoleng63/acmhot100-server@sha256:<digest>
+
+gh attestation verify `
+  oci://ghcr.io/wudiqiegaoleng63/acmhot100-server:1.2.3 `
+  -R wudiqiegaoleng63/ACM-Hot100
+```
+
+真实发布前必须确认 GitHub Packages 权限和目标 Package 可见性。Server 镜像为现有 migration/seed 流程保留了版本化题目数据；Web 使用 Dockerfile 专属 allowlist 构建上下文，不接收 `seed/`、隐藏测试、Server 源码或本地 `.env`。此流程只发布镜像，不执行部署；生产 Compose 与部署属于后续任务。
+
+本地验证 workflow 安全边界：
+
+```powershell
+cd apps/web
+npm run images:lint
+```
+
 ## 依赖与代码安全检查
 
 GitHub Actions 额外执行：

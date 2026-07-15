@@ -74,6 +74,8 @@ jobs:
         working-directory: apps/web
       - name: Verify OpenAPI
         run: make verify-openapi
+      - name: Verify image workflow policy
+        run: make verify-images
 
   e2e:
     name: Full-stack Mock E2E

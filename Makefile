@@ -1,4 +1,4 @@
-.PHONY: dev-web dev-api dev-worker docker-up docker-down migrate seed test-web test-server test-e2e lint build verify verify-openapi verify-web verify-server verify-compose verify-security
+.PHONY: dev-web dev-api dev-worker docker-up docker-down migrate seed test-web test-server test-e2e lint build verify verify-openapi verify-images verify-web verify-server verify-compose verify-security
 
 # ---- Development ----
 
@@ -52,10 +52,13 @@ build:
 
 # ---- Verification ----
 
-verify: verify-openapi verify-web verify-server verify-compose
+verify: verify-openapi verify-images verify-web verify-server verify-compose
 
 verify-openapi:
 	cd apps/web && npm run api:lint
+
+verify-images:
+	cd apps/web && npm run images:lint
 
 verify-web:
 	cd apps/web && npm run lint
