@@ -1,5 +1,7 @@
 # ACM Hot 100 · 后续实施计划
 
+> **状态：已完成的历史计划。** 当前唯一活跃计划是 [`POST_MVP_IMPLEMENTATION_PLAN.md`](./POST_MVP_IMPLEMENTATION_PLAN.md)，不得从本文件继续领取任务。
+>
 > 面向执行能力弱于主设计者的编码模型。每次只执行一个任务；每个任务都必须有独立验证和独立 Git 提交。
 > 基线审计日期：2026-07-13。
 > 基线提交：`5f5045e feat: Phase 1 - Auth, data models, seed data, and read-only pages`。

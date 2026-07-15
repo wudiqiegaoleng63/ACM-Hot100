@@ -4,6 +4,16 @@
 
 > 独立学习项目，非 LeetCode 官方产品。
 
+## 项目状态与计划
+
+MVP 已于 2026-07-15 完成，当前进入面向小规模公开 Beta 的 Post-MVP 上线与演进阶段。
+
+- 当前活跃计划：[`docs/POST_MVP_IMPLEMENTATION_PLAN.md`](docs/POST_MVP_IMPLEMENTATION_PLAN.md)
+- 已完成历史计划：[`docs/NEXT_IMPLEMENTATION_PLAN.md`](docs/NEXT_IMPLEMENTATION_PLAN.md)
+- MVP 产品与架构规格：[`docs/MVP_DESIGN_SPEC.md`](docs/MVP_DESIGN_SPEC.md)
+
+在仓库根目录运行 `make verify`，可以依次验证 Web、Go 服务以及 Docker Compose 配置。该命令不启动服务，也不执行需要已运行全栈的 Playwright E2E。
+
 ## 功能与技术栈
 
 - React 19 + Vite + TypeScript + React Router + TanStack Query
@@ -127,6 +137,14 @@ docker compose -f infra/docker-compose.yml --profile judge0 ps
 Judge0 API 仅绑定 `127.0.0.1:2358`，业务 Worker 通过 Compose 内网访问 `http://judge0-server:2358`。Judge0 Server/Workers 需要 `privileged` 沙箱权限；不应部署在不可信共享宿主机上。
 
 ## 自动化验证
+
+### 聚合验证
+
+```powershell
+make verify
+```
+
+该命令覆盖 Web lint、类型检查、Vitest、生产构建，Go test、vet、API/Worker 构建，以及 Compose 配置校验。
 
 ### 前端
 

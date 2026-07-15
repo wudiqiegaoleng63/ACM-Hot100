@@ -2,7 +2,6 @@ package http
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/acmhot100/server/internal/config"
 	"github.com/gin-gonic/gin"
@@ -92,21 +91,6 @@ func SecurityHeaders(cfg *config.Config) gin.HandlerFunc {
 		if cfg.AppEnv == "production" {
 			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
-		c.Next()
-	}
-}
-
-// AuthRequired is a placeholder middleware for JWT authentication.
-func AuthRequired() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "authorization header required",
-			})
-			return
-		}
-		// TODO: Validate JWT token
 		c.Next()
 	}
 }

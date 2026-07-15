@@ -1,4 +1,4 @@
-.PHONY: dev-web dev-api dev-worker docker-up docker-down migrate seed test-web test-server test-e2e lint build
+.PHONY: dev-web dev-api dev-worker docker-up docker-down migrate seed test-web test-server test-e2e lint build verify verify-web verify-server verify-compose
 
 # ---- Development ----
 
@@ -22,10 +22,10 @@ docker-down:
 # ---- Database ----
 
 migrate:
-	cd apps/server && go run cmd/migrate/main.go
+	cd apps/server && go run cmd/api/main.go -migrate
 
 seed:
-	cd apps/server && go run cmd/seed/main.go
+	cd apps/server && go run cmd/api/main.go -seed
 
 # ---- Testing ----
 
@@ -42,10 +42,28 @@ test-e2e:
 
 lint:
 	cd apps/web && npm run lint
-	cd apps/server && golangci-lint run ./...
+	cd apps/server && go vet ./...
 
 # ---- Build ----
 
 build:
 	cd apps/web && npm run build
-	cd apps/server && go build -o bin/api ./cmd/api
+	cd apps/server && go build ./cmd/api ./cmd/judge-worker
+
+# ---- Verification ----
+
+verify: verify-web verify-server verify-compose
+
+verify-web:
+	cd apps/web && npm run lint
+	cd apps/web && npm run type-check
+	cd apps/web && npm run test -- --run
+	cd apps/web && npm run build
+
+verify-server:
+	cd apps/server && go test ./...
+	cd apps/server && go vet ./...
+	cd apps/server && go build ./cmd/api ./cmd/judge-worker
+
+verify-compose:
+	docker compose -f infra/docker-compose.yml config --quiet
