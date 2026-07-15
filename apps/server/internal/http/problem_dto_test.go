@@ -94,6 +94,46 @@ func TestProblemDetailDTOContract(t *testing.T) {
 	}
 }
 
+func TestProblemListDTOContract(t *testing.T) {
+	state := model.ProgressSolved
+	encoded, err := json.Marshal(problemListDTO{
+		Items: []problemSummaryDTO{{
+			ID:            "problem-1",
+			Slug:          "two-sum-target",
+			OrderIndex:    1,
+			Title:         "两数目标和",
+			Difficulty:    model.DifficultyEasy,
+			Tags:          []tagDTO{{Slug: "array", Name: "数组"}},
+			ProgressState: &state,
+		}},
+		Total:    1,
+		Page:     1,
+		PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("marshal list DTO: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("decode list DTO: %v", err)
+	}
+	for _, field := range []string{"items", "total", "page", "page_size"} {
+		if _, ok := payload[field]; !ok {
+			t.Errorf("list response missing %q", field)
+		}
+	}
+	items, ok := payload["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("items = %#v, want one item", payload["items"])
+	}
+	item := items[0].(map[string]any)
+	for _, field := range []string{"id", "slug", "order_index", "title", "difficulty", "tags", "progress_state"} {
+		if _, ok := item[field]; !ok {
+			t.Errorf("problem summary missing %q", field)
+		}
+	}
+}
+
 func TestLanguageDTOExcludesJudgeInternals(t *testing.T) {
 	dto := newLanguageDTO(model.LanguageConfig{
 		Key:                "cpp17",

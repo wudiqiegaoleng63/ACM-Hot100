@@ -8,6 +8,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/acmhot100/server/internal/model"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
@@ -91,6 +94,60 @@ func TestGetSubmissionRequiresAuth(t *testing.T) {
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestSubmissionDetailResponseContractHidesHiddenOutput(t *testing.T) {
+	now := time.Date(2026, 7, 15, 8, 0, 0, 0, time.UTC)
+	response := submissionDetailResponse{
+		ID:             "submission-1",
+		ProblemSlug:    "two-sum-target",
+		ProblemTitle:   "两数目标和",
+		LanguageKey:    "cpp17",
+		SourceCode:     "int main() {}",
+		Status:         model.SubmissionStatusWrongAnswer,
+		PassedCases:    1,
+		TotalCases:     2,
+		CompilerOutput: "",
+		ErrorMessage:   "wrong answer",
+		CaseResults: []caseResultResponse{
+			{CaseIndex: 1, Status: model.SubmissionStatusAccepted, ActualOutput: "3\n", IsSample: true},
+			{CaseIndex: 2, Status: model.SubmissionStatusWrongAnswer, IsSample: false},
+		},
+		CreatedAt: now,
+		JudgedAt:  &now,
+	}
+
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal submission detail: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("decode submission detail: %v", err)
+	}
+	for _, field := range []string{
+		"id", "problem_slug", "problem_title", "language_key", "source_code", "status",
+		"passed_cases", "total_cases", "time_ms", "memory_kb", "compiler_output",
+		"error_message", "case_results", "created_at", "judged_at",
+	} {
+		if _, ok := payload[field]; !ok {
+			t.Errorf("submission detail missing %q", field)
+		}
+	}
+	caseResults := payload["case_results"].([]any)
+	sample := caseResults[0].(map[string]any)
+	if sample["actual_output"] != "3\n" {
+		t.Errorf("sample actual_output = %v, want public output", sample["actual_output"])
+	}
+	hidden := caseResults[1].(map[string]any)
+	if _, ok := hidden["actual_output"]; ok {
+		t.Error("hidden case exposes actual_output")
+	}
+	for _, forbidden := range []string{"input_data", "expected_output", "user_id", "problem_id"} {
+		if _, ok := hidden[forbidden]; ok {
+			t.Errorf("hidden case exposes %q", forbidden)
+		}
 	}
 }
 

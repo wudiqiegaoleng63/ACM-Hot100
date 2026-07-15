@@ -10,7 +10,9 @@
     "test": "vitest",
     "test:e2e": "playwright test",
     "type-check": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "api:lint": "redocly lint ../../packages/contracts/openapi.yaml --config ../../packages/contracts/redocly.yaml",
+    "api:docs": "redocly build-docs ../../packages/contracts/openapi.yaml --config ../../packages/contracts/redocly.yaml --output api-docs.html"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
@@ -33,6 +35,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.53.1",
+    "@redocly/cli": "2.39.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",

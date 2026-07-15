@@ -219,7 +219,7 @@ git diff --check
 
 建议提交信息：`chore: 固化 post-MVP 工程基线`
 
-### [ ] P5-02 · 建立 OpenAPI 单一接口契约
+### [x] P5-02 · 建立 OpenAPI 单一接口契约
 
 目标：让已有 API 的路径、Cookie、请求、响应、枚举和错误结构可被机器校验。
 
