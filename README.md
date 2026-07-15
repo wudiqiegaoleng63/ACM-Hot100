@@ -31,7 +31,7 @@ MVP 已于 2026-07-15 完成，当前进入面向小规模公开 Beta 的 Post-M
 
 ### 宿主机开发
 
-- Go 1.26.1+（与 `apps/server/go.mod` 一致）
+- Go 1.26.5+（与 `apps/server/go.mod` 一致）
 - Node.js 20+
 - MySQL 8.0、Redis 7
 
@@ -206,7 +206,25 @@ make verify-openapi
 make verify-compose
 ```
 
-远端首次运行成功前不展示 CI 成功徽章。E2E 失败时会上传保留 7 天的 Playwright report、trace 和经过再次脱敏的 Compose 日志；成功时不上传诊断材料。若 CI 与本地结果不同，先确认 Node `20.19.5`、Go `1.26.1`、`npm ci` 所用 lockfile、Playwright Chromium，以及 Docker Compose v2 是否一致。
+远端首次运行成功前不展示 CI 成功徽章。E2E 失败时会上传保留 7 天的 Playwright report、trace 和经过再次脱敏的 Compose 日志；成功时不上传诊断材料。若 CI 与本地结果不同，先确认 Node `20.19.5`、Go `1.26.5`、`npm ci` 所用 lockfile、Playwright Chromium，以及 Docker Compose v2 是否一致。
+
+## 依赖与代码安全检查
+
+GitHub Actions 额外执行：
+
+- `govulncheck v1.6.0` 检查 Go 代码实际可达的漏洞；
+- `npm audit --omit=dev` 检查 Web 生产依赖；
+- Dependency Review 阻止 Pull Request 引入中危及以上漏洞；
+- CodeQL 分析 Go 与 JavaScript/TypeScript；
+- Dependabot 每周分组更新 npm、Go Modules 和 GitHub Actions 依赖。
+
+本地运行：
+
+```powershell
+make verify-security
+```
+
+安全扫描不能使用全局 ignore。临时例外必须遵循 [`docs/operations/DEPENDENCY_SECURITY_EXCEPTIONS.md`](docs/operations/DEPENDENCY_SECURITY_EXCEPTIONS.md)，记录漏洞编号、影响、Owner 和不超过 30 天的到期日。
 
 ## 常用命令
 

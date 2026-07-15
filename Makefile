@@ -1,4 +1,4 @@
-.PHONY: dev-web dev-api dev-worker docker-up docker-down migrate seed test-web test-server test-e2e lint build verify verify-openapi verify-web verify-server verify-compose
+.PHONY: dev-web dev-api dev-worker docker-up docker-down migrate seed test-web test-server test-e2e lint build verify verify-openapi verify-web verify-server verify-compose verify-security
 
 # ---- Development ----
 
@@ -70,3 +70,7 @@ verify-server:
 
 verify-compose:
 	docker compose -f infra/docker-compose.yml config --quiet
+
+verify-security:
+	cd apps/web && npm audit --omit=dev
+	cd apps/server && go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
