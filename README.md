@@ -193,7 +193,7 @@ Playwright 不启用 retry 或 skip。CI/本机可通过 `E2E_BASE_URL`、`E2E_M
 
 ## 持续集成
 
-GitHub Actions 配置位于 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)，在针对 `main` 的 Pull Request 和 `main` 更新时分别执行 Web、Go、OpenAPI 与 Compose 配置验证。CI 复用 `make verify-*` 目标，第三方 Action 固定到完整 commit SHA，并只授予 `contents: read`。
+GitHub Actions 配置位于 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)，在针对 `main` 的 Pull Request 和 `main` 更新时分别执行 Web、Go、OpenAPI、Compose 配置验证与全栈 Mock E2E。基础 CI 复用 `make verify-*` 目标；E2E 从干净的唯一 Compose Project 启动 MySQL、Redis、Mailpit、API、Worker 和 Web，走通注册到 AC 提交详情，并始终删除测试卷。第三方 Action 固定到完整 commit SHA，workflow 只授予 `contents: read`。
 
 本地排查顺序：
 
@@ -206,7 +206,7 @@ make verify-openapi
 make verify-compose
 ```
 
-远端首次运行成功前不展示 CI 成功徽章。若 CI 与本地结果不同，先确认 Node `20.19.5`、Go `1.26.1`、`npm ci` 所用 lockfile，以及 Docker Compose v2 是否一致。
+远端首次运行成功前不展示 CI 成功徽章。E2E 失败时会上传保留 7 天的 Playwright report、trace 和经过再次脱敏的 Compose 日志；成功时不上传诊断材料。若 CI 与本地结果不同，先确认 Node `20.19.5`、Go `1.26.1`、`npm ci` 所用 lockfile、Playwright Chromium，以及 Docker Compose v2 是否一致。
 
 ## 常用命令
 

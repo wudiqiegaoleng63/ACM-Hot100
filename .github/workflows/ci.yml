@@ -75,6 +75,66 @@ jobs:
       - name: Verify OpenAPI
         run: make verify-openapi
 
+  e2e:
+    name: Full-stack Mock E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_BASE_URL: http://localhost:5173
+      COMPOSE_PROJECT_NAME: acmhot100-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+      E2E_BASE_URL: http://localhost:5173
+      E2E_EXTERNAL_SERVERS: '1'
+      E2E_MAILPIT_URL: http://127.0.0.1:8025
+      E2E_PUBLIC_URL: http://localhost:5173
+      E2E_RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 20.19.5
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install Web dependencies
+        run: npm ci
+        working-directory: apps/web
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Start full Mock stack
+        run: docker compose -f infra/docker-compose.yml up -d --build --wait --wait-timeout 180
+      - name: Verify service state
+        run: docker compose -f infra/docker-compose.yml ps
+      - name: Run core browser flow
+        run: npm run test:e2e
+        working-directory: apps/web
+      - name: Capture sanitized container logs
+        if: ${{ failure() }}
+        run: |
+          mkdir -p artifacts
+          docker compose -f infra/docker-compose.yml logs --no-color --timestamps \
+            | sed -E \
+                -e 's/(access_token|refresh_token|source_code|token|password|secret|cookie)=?[^[:space:];]*/\1=[REDACTED]/Ig' \
+                -e 's/(Authorization:|Cookie:|Set-Cookie:).*/\1 [REDACTED]/Ig' \
+            > artifacts/compose.log
+      - name: Upload failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+            artifacts/compose.log
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Stop and remove test stack
+        if: ${{ always() }}
+        run: docker compose -f infra/docker-compose.yml down -v --remove-orphans
+
   compose:
     name: Compose config
     runs-on: ubuntu-latest
