@@ -253,7 +253,7 @@ git diff --check
 
 建议提交信息：`docs: 建立 OpenAPI 接口契约`
 
-### [ ] P5-03 · 添加 GitHub Actions 基础 CI
+### [x] P5-03 · 添加 GitHub Actions 基础 CI
 
 目标：每次 PR 和 main 更新自动执行与本地一致的基础验证。
 

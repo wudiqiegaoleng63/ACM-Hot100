@@ -191,6 +191,23 @@ npm run test:e2e
 
 Playwright 不启用 retry 或 skip。CI/本机可通过 `E2E_BASE_URL`、`E2E_MAILPIT_URL`、`E2E_EXTERNAL_SERVERS` 和 `E2E_CHROME_CHANNEL` 指定已有服务与浏览器。
 
+## 持续集成
+
+GitHub Actions 配置位于 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)，在针对 `main` 的 Pull Request 和 `main` 更新时分别执行 Web、Go、OpenAPI 与 Compose 配置验证。CI 复用 `make verify-*` 目标，第三方 Action 固定到完整 commit SHA，并只授予 `contents: read`。
+
+本地排查顺序：
+
+```powershell
+make verify
+# 如只排查单个 Job：
+make verify-web
+make verify-server
+make verify-openapi
+make verify-compose
+```
+
+远端首次运行成功前不展示 CI 成功徽章。若 CI 与本地结果不同，先确认 Node `20.19.5`、Go `1.26.1`、`npm ci` 所用 lockfile，以及 Docker Compose v2 是否一致。
+
 ## 常用命令
 
 | 范围 | 命令 | 作用 |
